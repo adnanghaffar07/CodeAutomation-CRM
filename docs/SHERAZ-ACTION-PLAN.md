@@ -31,7 +31,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 ## 2. Before we start (your tasks)
 
 - [x] Git identity set for this repo (Sheraz-Ilyas / maan101011@gmail.com)
-- [ ] Sign in to GitHub as Sheraz-Ilyas when the first push prompts (pick the Sheraz-Ilyas account)
+- [x] Signed in to GitHub as Sheraz-Ilyas; pushes work
 - [x] Confirm Node 20.12+ is installed (Node 22.17)
 - [x] Docker: not needed. Using the Supabase cloud project instead (optional later)
 - [x] Supabase CLI (installed per project as a dev dependency; run with `npx supabase`)
@@ -55,7 +55,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Workspace isolation proven against the real DB (`npm run db:test`: 10 checks pass)
 - [x] Docs: SPEC, CONTRACTS, DESIGN, schema-changes
 - [x] Removed unused HANDLL files, the local Supabase config and the dev launch file
-- [x] First commit on local branch `phase-0-foundation` (not pushed)
+- [x] Committed and pushed to GitHub on branch `phase-0-foundation` (no default branch on GitHub yet)
 - [x] Exit check: typecheck, lint, 8 tests, build and DB isolation test all pass; shell checked in light, dark and phone width
 
 ### Phase 1: Users, roles, permissions, audit
