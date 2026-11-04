@@ -48,13 +48,13 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Port design system (`globals.css`, `tailwind.config.ts`, `components/ui`) and rebrand to the CodeAutomation logo colours
 - [x] Port app shell (side nav, top bar, mobile tab bar, command palette, quick-add, shortcuts)
 - [x] Placeholder routes for every section (Dashboard, Contacts, Accounts, Pipeline, Assignments, Imports, Exports, Integrations, Reports, Settings)
-- [x] Prisma schema (Workspace, WorkspaceMember), Supabase config (`supabase/config.toml`), `.env.example`
+- [x] Prisma schema (Workspace, WorkspaceMember), `.env.example`, one-command `npm run setup`
 - [x] Typecheck and production build pass
 - [x] Database: using the Supabase **cloud** project (Docker is optional; not needed for now)
 - [x] `prisma db push`, `crm_app` role, forced RLS, API lock-down and workspace seed (`npm run db:setup`)
 - [x] Workspace isolation proven against the real DB (`npm run db:test`: 10 checks pass)
 - [x] Docs: SPEC, CONTRACTS, DESIGN, schema-changes
-- [ ] (Optional, not urgent) 3 unused HANDLL files in `public/`: handll-email-logo.png, handll-overview.pdf, handll-pdf-worker.min.js
+- [x] Removed unused HANDLL files, the local Supabase config and the dev launch file
 - [x] First commit on local branch `phase-0-foundation` (not pushed)
 - [x] Exit check: typecheck, lint, 8 tests, build and DB isolation test all pass; shell checked in light, dark and phone width
 

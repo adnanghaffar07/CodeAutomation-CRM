@@ -12,12 +12,10 @@ Prerequisites: Node 20.12+ and a Supabase project (cloud).
 npm install
 # create .env and .env.local from .env.example: Supabase URL, publishable key,
 # DATABASE_URL (transaction pooler) and DIRECT_URL (session pooler)
-npx prisma db push      # create tables
-npm run db:setup        # app role, row-level security, API lock-down, seed workspace
-npm run db:test         # proves workspaces cannot see each other's data
+npm run setup           # tables + app role + security rules + seed + isolation test
 npm run dev             # http://localhost:3000
 ```
 
-`db:setup` creates the `crm_app` role and switches `DATABASE_URL` to it. The app must connect as `crm_app`, never as `postgres`, because `postgres` bypasses row-level security.
+`npm run setup` runs three steps in order (`prisma db push`, `db:setup`, `db:test`; each also runs on its own). `db:setup` creates the `crm_app` role and switches `DATABASE_URL` to it. The app must connect as `crm_app`, never as `postgres`, because `postgres` bypasses row-level security.
 
 Checks: `npm run typecheck`, `npm run build`, `npm test`.

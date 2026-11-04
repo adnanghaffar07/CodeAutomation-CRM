@@ -46,7 +46,7 @@ Supabase exposes the `public` schema over REST. `rls.sql` revokes all privileges
 `crm_app`: login, no superuser, no BYPASSRLS, no inherit. `postgres` (admin) has BYPASSRLS in Supabase, which is why it is for setup only.
 
 ### 2.6 Schema changes
-Edit `prisma/schema.prisma`, run `npx prisma db push`, then `npm run db:setup`, then `npm run db:test`. Log each change in `docs/schema-changes.md`. Schema edits are additive; destructive changes need a written plan.
+Edit `prisma/schema.prisma`, then run `npm run setup` (push, security rules, isolation test). Log each change in `docs/schema-changes.md`. Schema edits are additive; destructive changes need a written plan.
 
 ## 3. Identity and roles (Phase 1 contract, fixed now)
 - Supabase Auth proves **who** someone is (`auth.users.id`). It never decides what they may do.
