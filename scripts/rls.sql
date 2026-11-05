@@ -114,3 +114,160 @@ drop policy if exists credential_admin on "IntegrationCredential"
 create policy credential_admin on "IntegrationCredential" for all to crm_app
   using (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
   with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+--#
+-- ───────────────────────── Phase 2: accounts, contacts and everything attached to them ─────────────────────────
+-- Visibility (SPEC R-1): CEO/Admin and Manager see every record in their workspace; Sales/BD and Data Researcher see
+-- only records they created, own or were assigned. "viewerIds" (creator + owner + assignees) is kept up to date by a
+-- trigger, so the rule is one indexed array lookup, however many millions of rows there are.
+create or replace function app.sees_all() returns boolean language sql stable as $$
+  select coalesce(app.role() in ('ceo_admin', 'manager'), false) $$
+--#
+create or replace function app.set_viewers() returns trigger language plpgsql as $$
+begin
+  new."viewerIds" := array(
+    select distinct u
+    from unnest(array[new."createdById", new."ownerId"] || coalesce(new."assigneeIds", '{}'::uuid[])) as u
+    where u is not null
+  );
+  return new;
+end $$
+--#
+-- True when the caller can see the record a timeline entry or attachment belongs to. Runs as the caller, so the
+-- parent table's own row-level security decides.
+create or replace function app.record_visible(rtype text, rid uuid) returns boolean language sql stable as $$
+  select case rtype
+    when 'contact' then exists (select 1 from "Contact" c where c.id = rid)
+    when 'account' then exists (select 1 from "Account" a where a.id = rid)
+    else false end $$
+--#
+grant execute on all functions in schema app to crm_app
+--#
+drop trigger if exists account_viewers on "Account"
+--#
+create trigger account_viewers before insert or update of "createdById", "ownerId", "assigneeIds" on "Account"
+  for each row execute function app.set_viewers()
+--#
+drop trigger if exists contact_viewers on "Contact"
+--#
+create trigger contact_viewers before insert or update of "createdById", "ownerId", "assigneeIds" on "Contact"
+  for each row execute function app.set_viewers()
+--#
+-- Account and Contact
+alter table "Account" enable row level security
+--#
+alter table "Account" force row level security
+--#
+drop policy if exists account_select on "Account"
+--#
+drop policy if exists account_insert on "Account"
+--#
+drop policy if exists account_update on "Account"
+--#
+drop policy if exists account_delete on "Account"
+--#
+create policy account_select on "Account" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "viewerIds" @> array[app.user_id()])))
+--#
+create policy account_insert on "Account" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "createdById" = app.user_id()))
+--#
+create policy account_update on "Account" for update to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "viewerIds" @> array[app.user_id()])))
+  with check (app.bypass() or "workspaceId" = app.workspace_id())
+--#
+create policy account_delete on "Account" for delete to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.sees_all()))
+--#
+alter table "Contact" enable row level security
+--#
+alter table "Contact" force row level security
+--#
+drop policy if exists contact_select on "Contact"
+--#
+drop policy if exists contact_insert on "Contact"
+--#
+drop policy if exists contact_update on "Contact"
+--#
+drop policy if exists contact_delete on "Contact"
+--#
+create policy contact_select on "Contact" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "viewerIds" @> array[app.user_id()])))
+--#
+create policy contact_insert on "Contact" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "createdById" = app.user_id()))
+--#
+create policy contact_update on "Contact" for update to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "viewerIds" @> array[app.user_id()])))
+  with check (app.bypass() or "workspaceId" = app.workspace_id())
+--#
+create policy contact_delete on "Contact" for delete to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.sees_all()))
+--#
+-- Activity (timeline): visible with its record; anyone who can see the record may add an entry as themselves; append-only.
+alter table "Activity" enable row level security
+--#
+alter table "Activity" force row level security
+--#
+drop policy if exists activity_select on "Activity"
+--#
+drop policy if exists activity_insert on "Activity"
+--#
+create policy activity_select on "Activity" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or app.record_visible("recordType"::text, "recordId"))))
+--#
+create policy activity_insert on "Activity" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and ("actorId" = app.user_id() or "actorId" is null) and app.record_visible("recordType"::text, "recordId")))
+--#
+revoke update, delete, truncate on "Activity" from crm_app
+--#
+-- Attachments: visible with the record; uploader or manager can remove.
+alter table "Attachment" enable row level security
+--#
+alter table "Attachment" force row level security
+--#
+drop policy if exists attachment_select on "Attachment"
+--#
+drop policy if exists attachment_insert on "Attachment"
+--#
+drop policy if exists attachment_delete on "Attachment"
+--#
+create policy attachment_select on "Attachment" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or app.record_visible("recordType"::text, "recordId"))))
+--#
+create policy attachment_insert on "Attachment" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "uploadedById" = app.user_id() and app.record_visible("recordType"::text, "recordId")))
+--#
+create policy attachment_delete on "Attachment" for delete to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "uploadedById" = app.user_id())))
+--#
+-- Saved views: your own, plus ones shared in the workspace.
+alter table "SavedView" enable row level security
+--#
+alter table "SavedView" force row level security
+--#
+drop policy if exists view_select on "SavedView"
+--#
+drop policy if exists view_write on "SavedView"
+--#
+create policy view_select on "SavedView" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and ("ownerId" = app.user_id() or shared)))
+--#
+create policy view_write on "SavedView" for all to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and "ownerId" = app.user_id()))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "ownerId" = app.user_id()))
+--#
+-- Custom field definitions: everyone reads, only CEO/Admin changes.
+alter table "CustomFieldDef" enable row level security
+--#
+alter table "CustomFieldDef" force row level security
+--#
+drop policy if exists cfd_select on "CustomFieldDef"
+--#
+drop policy if exists cfd_write on "CustomFieldDef"
+--#
+create policy cfd_select on "CustomFieldDef" for select to crm_app
+  using (app.bypass() or "workspaceId" = app.workspace_id())
+--#
+create policy cfd_write on "CustomFieldDef" for all to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))

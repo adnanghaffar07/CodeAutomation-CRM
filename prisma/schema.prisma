@@ -3,13 +3,16 @@
 // permissions and audit; Phase 2 adds accounts and contacts.
 // Every business table will carry workspaceId and be covered by forced RLS.
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
+  // Trigram indexes make "contains" search fast on millions of rows (contact / account search).
+  extensions = [pg_trgm]
 }
 
 enum Role {
@@ -33,6 +36,8 @@ model Workspace {
   members   WorkspaceMember[]
   auditLogs AuditLog[]
   credentials IntegrationCredential[]
+  accounts    Account[]
+  contacts    Contact[]
 }
 
 /// Links a Supabase Auth user (auth.users.id) to a workspace with a CRM role.
@@ -83,4 +88,211 @@ model IntegrationCredential {
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, provider, label])
+}
+
+// ───────────────────────────── Phase 2: accounts and contacts ─────────────────────────────
+
+/// Where a lead stands (SPEC R-3.6).
+enum LeadStatus {
+  new
+  researching
+  contacted
+  engaged
+  qualified
+  disqualified
+}
+
+/// Can we email this person? Checked before any outreach (SPEC R-3.7, R-7.6).
+enum EmailStatus {
+  active
+  unsubscribed
+  do_not_contact
+  bounced
+}
+
+enum RecordType {
+  contact
+  account
+}
+
+enum ActivityKind {
+  note
+  email
+  call
+  meeting
+  task
+  change
+  system
+}
+
+enum ActivitySource {
+  manual
+  integration
+  system
+}
+
+enum CustomFieldType {
+  text
+  number
+  date
+  select
+}
+
+/// A company. `viewerIds` is maintained by a database trigger (creator + owner + assignees); row-level security
+/// uses it so Sales/BD and Researchers see only their own records, with one index lookup.
+model Account {
+  id            String      @id @default(uuid()) @db.Uuid
+  workspaceId   String      @db.Uuid
+  name          String
+  domain        String?
+  website       String?
+  industry      String?
+  sizeBand      String?
+  city          String?
+  region        String?
+  country       String?
+  phone         String?
+  linkedinUrl   String?
+  description   String?
+  source        String?
+  createdById   String      @db.Uuid
+  ownerId       String?     @db.Uuid
+  assigneeIds   String[]    @db.Uuid
+  viewerIds     String[]    @db.Uuid
+  importBatchId String?     @db.Uuid
+  verifiedAt    DateTime?
+  tags          String[]
+  customFields  Json        @default("{}")
+  qualification LeadStatus  @default(new)
+  serviceInterest String?
+  nextAction    String?
+  followUpAt    DateTime?
+  searchText    String      @default("")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts      Contact[]
+
+  @@index([workspaceId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([workspaceId, name, id])
+  @@index([workspaceId, domain])
+  @@index([workspaceId, ownerId])
+  @@index([viewerIds], type: Gin)
+  @@index([tags], type: Gin)
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+/// A person, optionally linked to an account.
+model Contact {
+  id            String      @id @default(uuid()) @db.Uuid
+  workspaceId   String      @db.Uuid
+  accountId     String?     @db.Uuid
+  firstName     String
+  lastName      String      @default("")
+  fullName      String
+  email         String?
+  emailStatus   EmailStatus @default(active)
+  phone         String?
+  jobTitle      String?
+  linkedinUrl   String?
+  city          String?
+  region        String?
+  country       String?
+  source        String?
+  createdById   String      @db.Uuid
+  ownerId       String?     @db.Uuid
+  assigneeIds   String[]    @db.Uuid
+  viewerIds     String[]    @db.Uuid
+  importBatchId String?     @db.Uuid
+  verifiedAt    DateTime?
+  tags          String[]
+  customFields  Json        @default("{}")
+  qualification LeadStatus  @default(new)
+  serviceInterest String?
+  nextAction    String?
+  followUpAt    DateTime?
+  searchText    String      @default("")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account       Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([workspaceId, fullName, id])
+  @@index([workspaceId, accountId])
+  @@index([workspaceId, ownerId])
+  @@index([workspaceId, followUpAt])
+  @@index([viewerIds], type: Gin)
+  @@index([tags], type: Gin)
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+/// The unified timeline of a record: notes, emails, calls, meetings, tasks and field changes (SPEC R-3.5, R-5).
+/// Append-only. `source` keeps manually logged activity apart from integration-confirmed activity (SPEC R-5.4).
+model Activity {
+  id          String         @id @default(uuid()) @db.Uuid
+  workspaceId String         @db.Uuid
+  recordType  RecordType
+  recordId    String         @db.Uuid
+  kind        ActivityKind
+  summary     String
+  body        String?
+  detail      Json?
+  actorId     String?        @db.Uuid
+  actorEmail  String?
+  source      ActivitySource @default(manual)
+  occurredAt  DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+
+  @@index([workspaceId, recordType, recordId, occurredAt(sort: Desc)])
+}
+
+/// A saved filter + sort for a list (SPEC R-3.4). Private to its owner unless shared.
+model SavedView {
+  id          String     @id @default(uuid()) @db.Uuid
+  workspaceId String     @db.Uuid
+  ownerId     String     @db.Uuid
+  entity      RecordType
+  name        String
+  filters     Json       @default("{}")
+  sort        String     @default("newest")
+  shared      Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([workspaceId, ownerId, entity, name])
+  @@index([workspaceId, entity])
+}
+
+/// Admin-defined extra fields (SPEC R-3.4). Values live in the record's `customFields` JSON, keyed by `key`.
+model CustomFieldDef {
+  id          String          @id @default(uuid()) @db.Uuid
+  workspaceId String          @db.Uuid
+  entity      RecordType
+  key         String
+  label       String
+  type        CustomFieldType @default(text)
+  options     String[]
+  position    Int             @default(0)
+  createdAt   DateTime        @default(now())
+
+  @@unique([workspaceId, entity, key])
+}
+
+/// File metadata. The file itself is in a private Supabase Storage bucket; downloads go through a short-lived signed URL
+/// issued only after the record's visibility check passes.
+model Attachment {
+  id           String     @id @default(uuid()) @db.Uuid
+  workspaceId  String     @db.Uuid
+  recordType   RecordType
+  recordId     String     @db.Uuid
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  uploadedById String     @db.Uuid
+  createdAt    DateTime   @default(now())
+
+  @@index([workspaceId, recordType, recordId])
 }
