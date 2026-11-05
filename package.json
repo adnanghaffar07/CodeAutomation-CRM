@@ -14,7 +14,8 @@
     "db:push": "prisma db push",
     "db:setup": "tsx scripts/db-setup.ts",
     "db:test": "tsx scripts/test-isolation.ts",
-    "admin:link": "tsx scripts/admin-link.ts"
+    "admin:link": "tsx scripts/admin-link.ts",
+    "seed:sample": "tsx scripts/seed-sample.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
