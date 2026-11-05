@@ -28,3 +28,6 @@ Open the file it names in `.invite-links/` (not printed, not committed), follow 
 `npm run setup` runs three steps in order (`prisma db push`, `db:setup`, `db:test`; each also runs on its own). `db:setup` creates the `crm_app` role and switches `DATABASE_URL` to it. The app must connect as `crm_app`, never as `postgres`, because `postgres` bypasses row-level security.
 
 Checks: `npm run typecheck`, `npm run build`, `npm test`.
+
+### Sample data
+`npm run seed:sample` adds 24 fictional companies and 80 contacts (tagged `sample`) so the screens have something to show. `npm run seed:sample -- clear` removes exactly those rows.

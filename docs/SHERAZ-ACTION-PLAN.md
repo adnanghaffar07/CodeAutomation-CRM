@@ -3,7 +3,7 @@
 Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Detail for each phase lives in [PLAN.md](PLAN.md).
 
 **Status key:** ⬜ not started · 🟦 in progress · ✅ done · ⛔ blocked
-**Last updated:** 2026-11-05 (Phase 1 done)
+**Last updated:** 2026-11-05 (Phase 1 done; Phase 2 built, awaiting your browser check)
 
 ---
 
@@ -13,7 +13,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 |---|---|---|---|---|---|
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
 | 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
-| 2 | Accounts and contacts | ⬜ | | | |
+| 2 | Accounts and contacts | 🟦 | 2026-11-05 | | Built and tested. Browser check by you, attachments and push pending. |
 | 3 | Imports and data quality | ⬜ | | | |
 | 4 | Assignments and work verification | ⬜ | | | |
 | 5 | Sales pipeline | ⬜ | | | |
@@ -87,12 +87,29 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | Real-time session revoke on suspend | Membership check already blocks the next request; Supabase ban stops new sign-ins | Optional |
 
 ### Phase 2: Accounts and contacts
-- [ ] Account and contact schema (creator, owner, assignees, custom fields, suppression)
-- [ ] List view with filters, saved views, bulk actions
-- [ ] Search that respects visibility
-- [ ] Record page with unified timeline, notes, attachments
-- [ ] Seed 2M contacts; list and search fast
-- [ ] Exit check: scale benchmark documented
+- [x] Database: accounts, contacts, timeline, saved views, custom fields, attachment records; search indexes; visibility trigger (applied to Supabase)
+- [x] Visibility rule in the database: CEO/Admin and Manager see everything; Sales/BD and Researcher see records they created, own or were assigned
+- [x] Lists for contacts and accounts: search, filters (status, email status, owner, follow-up, industry), sort, keyset paging, capped counts
+- [x] Create and edit forms, tags, verified flag, custom fields, owner (managers can reassign)
+- [x] Record pages with a timeline: notes, creation, and field-by-field change history
+- [x] Bulk actions: set status, assign owner (managers), add tag, delete (managers)
+- [x] Saved views (private or shared by managers)
+- [x] Settings: custom fields (CEO/Admin)
+- [x] Duplicate emails refused without revealing whose record holds them
+- [x] Small sample data (24 companies, 80 contacts), removable: `npm run seed:sample -- clear`
+- [x] Tests: 47 database checks, 36 unit tests, lint, build
+- [ ] **You:** check in the browser (see the checklist in the chat), then say "phase 2 done"
+- [ ] Commit and push (branch `phase-2-contacts-accounts`)
+
+**Deferred from Phase 2 (leftovers, not blocking)**
+| Item | Why deferred | Revisit |
+|---|---|---|
+| File attachments on records | Needs a private Supabase Storage bucket plus signed downloads; the table and rules exist | Next, as part of Phase 2b or with Imports (Phase 3) |
+| Editing "assigned users" on a record | Owner reassignment works; multi-person assignment belongs with Assignments | Phase 4 |
+| Searchable account picker | The account dropdown lists the first 300 companies by name | When an account list nears 300 |
+| Import, duplicate detection and merge | Phase 3 | Phase 3 |
+| Deep paging and name-sort speed at millions of rows | A 2M-row test showed 3 slow spots (very deep pages, Sales-user name sort with filters, Sales-user counts); irrelevant at current size | Phase 13 load test |
+| Showing the timeline's emails, calls and meetings | Filled by integrations | Phases 9 and 10 |
 
 ### Phase 3: Imports and data quality
 - [ ] Upload, column mapping, preview, validation

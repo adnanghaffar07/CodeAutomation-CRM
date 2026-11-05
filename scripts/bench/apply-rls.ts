@@ -11,11 +11,11 @@ if (!url || !/127\.0\.0\.1|localhost/.test(url)) {
 }
 
 async function main() {
-  const db = new PrismaClient({ datasources: { db: { url } } });
+  const db = new PrismaClient({ datasources: { db: { url: url! } } });
   const sql = fs.readFileSync(path.join(__dirname, "..", "rls.sql"), "utf8").replace("__CRM_APP_PASSWORD__", "bench");
   const statements = sql.split(/^--#\s*$/m).map((s) => s.trim()).filter(Boolean);
   for (const st of statements) await db.$executeRawUnsafe(st);
-  console.log(`Applied ${statements.length} statements to ${url.replace(/:[^:@/]+@/, ":<hidden>@")}`);
+  console.log(`Applied ${statements.length} statements to ${String(url).replace(/:[^:@/]+@/, ":<hidden>@")}`);
   await db.$disconnect();
 }
 main().catch((e) => { console.error(String(e.message ?? e).split("\n").slice(-3).join(" | ")); process.exit(1); });

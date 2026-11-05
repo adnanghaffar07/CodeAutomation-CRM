@@ -115,6 +115,74 @@ async function main() {
     const credSales = await withScope(asASales, (tx) => tx.integrationCredential.findMany());
     check("sales user cannot see credentials", credSales.length === 0);
 
+    // ---- Phase 2: record visibility (creator / owner / assignee) ----------------------------
+    const [s1, s2] = [randomUUID(), randomUUID()];
+    const asS1 = { userId: s1, workspaceId: wsA, role: "sales_bd" as const };
+    const asS2 = { userId: s2, workspaceId: wsA, role: "data_researcher" as const };
+    const asMgr = { userId: randomUUID(), workspaceId: wsA, role: "manager" as const };
+    const mk = (extra: object = {}) => ({ workspaceId: wsA, createdById: s1, ownerId: s1, firstName: "Test", fullName: "Test Person", ...extra });
+
+    const c1 = await withScope(asS1, (tx) => tx.contact.create({ data: mk({ email: `c1-${tag}@test.invalid` }), select: { id: true, viewerIds: true } }));
+    check("trigger fills viewerIds with creator and owner", c1.viewerIds.length === 1 && c1.viewerIds[0] === s1);
+    check("creator sees their own contact", (await withScope(asS1, (tx) => tx.contact.findMany({ where: { id: c1.id } }))).length === 1);
+    check("another sales/researcher user does NOT see it", (await withScope(asS2, (tx) => tx.contact.findMany({ where: { id: c1.id } }))).length === 0);
+    check("manager sees it", (await withScope(asMgr, (tx) => tx.contact.findMany({ where: { id: c1.id } }))).length === 1);
+    check("CEO/Admin sees it", (await withScope(asA, (tx) => tx.contact.findMany({ where: { id: c1.id } }))).length === 1);
+    check("CEO of another workspace does not", (await withScope(asB, (tx) => tx.contact.findMany({ where: { id: c1.id } }))).length === 0);
+
+    await withScope(asMgr, (tx) => tx.contact.update({ where: { id: c1.id }, data: { assigneeIds: [s2] } }));
+    check("assigning a person gives them access (trigger refreshes viewerIds)", (await withScope(asS2, (tx) => tx.contact.findMany({ where: { id: c1.id } }))).length === 1);
+    await withScope(asMgr, (tx) => tx.contact.update({ where: { id: c1.id }, data: { assigneeIds: [] } }));
+    check("removing the assignment removes their access", (await withScope(asS2, (tx) => tx.contact.findMany({ where: { id: c1.id } }))).length === 0);
+
+    let forged = false;
+    try { await withScope(asS2, (tx) => tx.contact.create({ data: mk({ createdById: s1, email: `forged-${tag}@test.invalid` }), select: { id: true } })); } catch { forged = true; }
+    check("cannot create a record in someone else's name", forged);
+
+    const updatedByOther = await withScope(asS2, (tx) => tx.contact.updateMany({ where: { id: c1.id }, data: { jobTitle: "hacked" } }));
+    check("cannot edit a record you cannot see", updatedByOther.count === 0);
+    const delBySales = await withScope(asS1, (tx) => tx.contact.deleteMany({ where: { id: c1.id } }));
+    check("sales/researcher cannot delete, even their own", delBySales.count === 0);
+
+    let dup = false;
+    try { await withScope(asS2, (tx) => tx.contact.create({ data: mk({ createdById: s2, ownerId: s2, email: `c1-${tag}@test.invalid` }), select: { id: true } })); } catch { dup = true; }
+    check("same email twice in one workspace is refused", dup);
+    const sameEmailOtherWs = await withScope(asB, (tx) => tx.contact.create({ data: { workspaceId: wsB, createdById: userB, ownerId: userB, firstName: "T", fullName: "T", email: `c1-${tag}@test.invalid` }, select: { id: true } }));
+    check("the same email in a different workspace is fine", !!sameEmailOtherWs.id);
+
+    const a1 = await withScope(asS1, (tx) => tx.account.create({ data: { workspaceId: wsA, createdById: s1, ownerId: s1, name: `Acct ${tag}` }, select: { id: true } }));
+    check("accounts follow the same rule (other user cannot see)", (await withScope(asS2, (tx) => tx.account.findMany({ where: { id: a1.id } }))).length === 0);
+    check("accounts: manager sees it", (await withScope(asMgr, (tx) => tx.account.findMany({ where: { id: a1.id } }))).length === 1);
+
+    // ---- timeline follows its record ---------------------------------------------------------
+    await withScope(asS1, (tx) => tx.activity.createMany({ data: [{ workspaceId: wsA, recordType: "contact", recordId: c1.id, kind: "note", summary: "Note", body: "private", actorId: s1 }] }));
+    check("timeline: owner reads it", (await withScope(asS1, (tx) => tx.activity.findMany({ where: { recordId: c1.id } }))).length === 1);
+    check("timeline: unrelated user cannot read it", (await withScope(asS2, (tx) => tx.activity.findMany({ where: { recordId: c1.id } }))).length === 0);
+    check("timeline: manager reads it", (await withScope(asMgr, (tx) => tx.activity.findMany({ where: { recordId: c1.id } }))).length === 1);
+    let noteBlocked = false;
+    try { await withScope(asS2, (tx) => tx.activity.createMany({ data: [{ workspaceId: wsA, recordType: "contact", recordId: c1.id, kind: "note", summary: "Note", body: "sneaky", actorId: s2 }] })); } catch { noteBlocked = true; }
+    check("cannot add a note to a record you cannot see", noteBlocked);
+    let spoof = false;
+    try { await withScope(asS1, (tx) => tx.activity.createMany({ data: [{ workspaceId: wsA, recordType: "contact", recordId: c1.id, kind: "note", summary: "Note", body: "spoof", actorId: s2 }] })); } catch { spoof = true; }
+    check("cannot write a timeline entry as someone else", spoof);
+    let actUpd = false;
+    try { await withScope(asS1, (tx) => tx.activity.updateMany({ data: { body: "edited" } })); } catch { actUpd = true; }
+    check("timeline entries cannot be edited", actUpd);
+
+    // ---- saved views and custom fields ---------------------------------------------------------
+    await withScope(asS1, (tx) => tx.savedView.createMany({ data: [
+      { workspaceId: wsA, ownerId: s1, entity: "contact", name: `private-${tag}`, shared: false },
+      { workspaceId: wsA, ownerId: s1, entity: "contact", name: `shared-${tag}`, shared: true },
+    ] }));
+    const seenViews = (await withScope(asS2, (tx) => tx.savedView.findMany({ select: { name: true } }))).map((v) => v.name);
+    check("saved views: others see only shared ones", seenViews.includes(`shared-${tag}`) && !seenViews.includes(`private-${tag}`));
+    check("saved views: other workspace sees none", (await withScope(asB, (tx) => tx.savedView.findMany())).length === 0);
+    let fieldBlocked = false;
+    try { await withScope(asS1, (tx) => tx.customFieldDef.create({ data: { workspaceId: wsA, entity: "contact", key: "x", label: "X" } })); } catch { fieldBlocked = true; }
+    check("only the CEO/Admin can define custom fields", fieldBlocked);
+    await withScope(asA, (tx) => tx.customFieldDef.create({ data: { workspaceId: wsA, entity: "contact", key: `k${tag}`, label: "K" } }));
+    check("everyone in the workspace can read field definitions", (await withScope(asS2, (tx) => tx.customFieldDef.findMany())).length === 1);
+
     // Supabase REST API with the public key must not expose the tables.
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -125,6 +193,11 @@ async function main() {
       check("REST API with the publishable key returns no data", !leaked, `HTTP ${res.status}`);
     }
   } finally {
+    await admin.activity.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.savedView.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.customFieldDef.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.contact.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.account.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.integrationCredential.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.auditLog.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.workspaceMember.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });

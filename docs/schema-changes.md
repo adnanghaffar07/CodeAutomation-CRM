@@ -2,6 +2,14 @@
 
 Log every change to `prisma/schema.prisma` or `scripts/rls.sql` here (newest first): date, what, why. After any change run `npx prisma db push`, `npm run db:setup`, `npm run db:test`.
 
+## 2026-11-05: Phase 2 (accounts and contacts)
+- Enabled the `pg_trgm` extension. Added enums `LeadStatus`, `EmailStatus`, `RecordType`, `ActivityKind`, `ActivitySource`, `CustomFieldType`.
+- Added `Account`, `Contact` (both with `viewerIds` kept by a trigger, a `searchText` trigram index, GIN indexes on `viewerIds` and `tags`, and keyset-friendly indexes), `Activity`, `SavedView`, `CustomFieldDef`, `Attachment`.
+- `Contact` is unique per workspace and email.
+- `scripts/rls.sql`: `app.sees_all()`, `app.set_viewers()` and `app.record_visible()`, triggers on Account and Contact, and policies for all six tables (timeline and attachments follow their record; the timeline is append-only).
+- Why: SPEC R-1.1, R-3.1 to R-3.7, R-5.1, R-8.9.
+- Scale test (throwaway database, 2,000,000 contacts, scripts in `scripts/bench/`): first pages and follow-up lists in milliseconds; three slow spots recorded in the tracker for Phase 13.
+
 ## 2026-11-05: Phase 1 (users, audit, credentials)
 - Added `AuditLog` (append-only; indexes on workspace + time and workspace + action) and `IntegrationCredential` (encrypted `ciphertext`, `hint` = last 4 characters; unique per workspace, provider and label).
 - `WorkspaceMember` policy split into `member_select` (whole workspace) and insert/update/delete restricted to `ceo_admin`.

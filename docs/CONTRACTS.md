@@ -59,10 +59,15 @@ Edit `prisma/schema.prisma`, then run `npm run setup` (push, security rules, iso
 - **Integration credentials** (`IntegrationCredential`): AES-256-GCM with `APP_ENCRYPTION_KEY` (`src/lib/crypto.ts`). RLS allows only `ceo_admin` in the same workspace. The `ciphertext` column is never selected into a page and never returned to the browser; the UI shows only provider, label and the last 4 characters (`hint`).
 - The secret key (`SUPABASE_SERVICE_ROLE_KEY`) is used only in `src/lib/supabase/admin.ts` and scripts, and must never be imported by client code.
 
-## 4. Record visibility (Phase 2 contract, fixed now)
-- Each contact/account stores `createdById` (never changes), `ownerId`, and assignees in a link table.
-- CEO/Admin and Manager see every row in the workspace; Sales/BD and Data Researcher see rows where they are creator, owner or assignee.
-- One SQL function `app.can_see(...)` implements this and is used by RLS, search, dashboards, exports and AI retrieval. No second copy of the rule.
+## 4. Record visibility (built in Phase 2)
+- `Account` and `Contact` each store `createdById` (never changes), `ownerId` and `assigneeIds`. A database trigger (`app.set_viewers`) keeps `viewerIds` = creator + owner + assignees, so the rule is one indexed array lookup, however large the table.
+- CEO/Admin and Manager (`app.sees_all()`) see every row in the workspace. Sales/BD and Data Researcher see rows where `viewerIds` contains their id. Insert requires `createdById = app.user_id()` (no records in someone else's name). Only CEO/Admin and Manager can delete.
+- `Activity` (timeline) and `Attachment` follow their record through `app.record_visible()`, which runs as the caller, so the parent's own rules decide. The timeline is append-only and an entry can only be written as yourself.
+- `SavedView`: your own plus ones shared in the workspace. `CustomFieldDef`: everyone reads, only CEO/Admin writes.
+- **Lists** (`src/lib/records/list.ts`) use raw SQL inside `withScope`: filters, a lower-case `searchText` column with a trigram index, and **keyset paging** (`(sortValue, id)` cursor; never `OFFSET`). Counts stop at 10,000. Row-level security applies to every statement, so no list code decides who may see what.
+- **Duplicates:** `@@unique([workspaceId, email])`. A violation is reported only as "a contact with that email already exists", never whose record it is (SPEC R-8.9).
+- **Actions** (`src/app/(app)/contacts|accounts|views/actions.ts`): capability check, caller's scope, a timeline entry for every change. Only managers and the CEO/Admin may change owners or delete. Pure validation lives in `src/lib/records/schemas.ts` so tests can load it.
+- Sample data (`npm run seed:sample`) is marked `source = "sample-data"` and tagged `sample`; `-- clear` removes exactly those rows.
 
 ## 5. Background work (Phase 3+ contract)
 A `Job` table (Postgres queue, `FOR UPDATE SKIP LOCKED`) and a standalone worker (`npm run worker`). Request handlers enqueue; the worker does the work. Jobs carry `workspaceId` and run under `withSystem` + explicit filters.

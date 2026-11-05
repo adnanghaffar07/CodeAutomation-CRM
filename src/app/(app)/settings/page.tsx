@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, KeyRound, ScrollText, Settings, Users } from "lucide-react";
+import { ChevronRight, KeyRound, ScrollText, Settings, TextCursorInput, Users } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireUser } from "@/lib/session";
 import { can, type Capability } from "@/lib/permissions";
@@ -10,6 +10,7 @@ export const metadata: Metadata = { title: "Settings" };
 const SECTIONS: { href: string; title: string; hint: string; icon: React.ReactNode; cap: Capability }[] = [
   { href: "/settings/users", title: "Users", hint: "Invite people, set roles, suspend access.", icon: <Users />, cap: "users.read" },
   { href: "/settings/audit", title: "Audit log", hint: "Who did what, and when.", icon: <ScrollText />, cap: "audit.read" },
+  { href: "/settings/fields", title: "Custom fields", hint: "Add your own fields to contacts and accounts.", icon: <TextCursorInput />, cap: "settings.access" },
   { href: "/settings/credentials", title: "Integration credentials", hint: "API keys for Instantly, RingCentral, Salesforce and more, stored encrypted.", icon: <KeyRound />, cap: "integrations.manage" },
 ];
 
