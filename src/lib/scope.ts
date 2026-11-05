@@ -9,6 +9,11 @@ export type Role = "ceo_admin" | "manager" | "sales_bd" | "data_researcher";
 
 export type Scope = { userId: string; workspaceId: string; role: Role };
 
+// Prisma closes an interactive transaction after 5 s by default. Every statement is a network round trip to the
+// pooler (hundreds of ms when the database is far away), so a handful of statements can exceed that and fail with
+// "Transaction not found". Generous limits; a slow transaction should be fixed by doing less in it, not by failing.
+const TX_OPTIONS = { maxWait: 15_000, timeout: 30_000 };
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Run `fn` as a signed-in user of one workspace. */
@@ -20,7 +25,7 @@ export async function withScope<T>(scope: Scope, fn: (tx: Tx) => Promise<T>): Pr
       set_config('app.workspace_id', ${scope.workspaceId}, true),
       set_config('app.role', ${scope.role}, true)`;
     return fn(tx);
-  });
+  }, TX_OPTIONS);
 }
 
 /** Run `fn` as the system (background jobs, sign-in lookups). Bypasses workspace isolation: use sparingly. */
@@ -28,5 +33,5 @@ export async function withSystem<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   return prisma.$transaction(async (tx) => {
     await tx.$queryRaw`select set_config('app.bypass', 'on', true)`;
     return fn(tx);
-  });
+  }, TX_OPTIONS);
 }
