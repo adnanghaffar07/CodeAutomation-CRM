@@ -58,13 +58,59 @@ create policy workspace_isolation on "Workspace" for all to crm_app
   using (app.bypass() or id = app.workspace_id())
   with check (app.bypass() or id = app.workspace_id())
 --#
--- WorkspaceMember: only rows of your own workspace. (Phase 1 narrows writes to CEO/Admin.)
+-- WorkspaceMember: everyone in a workspace can read its member list (names for assignees);
+-- only the CEO/Admin can add, change or remove members.
 alter table "WorkspaceMember" enable row level security
 --#
 alter table "WorkspaceMember" force row level security
 --#
 drop policy if exists member_isolation on "WorkspaceMember"
 --#
-create policy member_isolation on "WorkspaceMember" for all to crm_app
+drop policy if exists member_select on "WorkspaceMember"
+--#
+drop policy if exists member_insert on "WorkspaceMember"
+--#
+drop policy if exists member_update on "WorkspaceMember"
+--#
+drop policy if exists member_delete on "WorkspaceMember"
+--#
+create policy member_select on "WorkspaceMember" for select to crm_app
   using (app.bypass() or "workspaceId" = app.workspace_id())
+--#
+create policy member_insert on "WorkspaceMember" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+--#
+create policy member_update on "WorkspaceMember" for update to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+--#
+create policy member_delete on "WorkspaceMember" for delete to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+--#
+-- AuditLog: append-only. Read and insert inside your workspace; the app role can never update or delete.
+alter table "AuditLog" enable row level security
+--#
+alter table "AuditLog" force row level security
+--#
+drop policy if exists audit_select on "AuditLog"
+--#
+drop policy if exists audit_insert on "AuditLog"
+--#
+create policy audit_select on "AuditLog" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() in ('ceo_admin', 'manager')))
+--#
+create policy audit_insert on "AuditLog" for insert to crm_app
   with check (app.bypass() or "workspaceId" = app.workspace_id())
+--#
+revoke update, delete, truncate on "AuditLog" from crm_app
+--#
+-- IntegrationCredential: CEO/Admin only, inside their own workspace.
+alter table "IntegrationCredential" enable row level security
+--#
+alter table "IntegrationCredential" force row level security
+--#
+drop policy if exists credential_admin on "IntegrationCredential"
+--#
+create policy credential_admin on "IntegrationCredential" for all to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))

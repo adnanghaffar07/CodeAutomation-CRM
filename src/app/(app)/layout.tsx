@@ -1,24 +1,34 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
-import { NAV_ITEMS } from "@/components/shell/nav-items";
+import { NAV_ITEMS, isNavActive } from "@/components/shell/nav-items";
+import { visibleNavIds } from "@/components/shell/nav-access";
 import type { ShellUser } from "@/components/shell/shell-context";
+import { requireUser } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
-// Every signed-in page renders inside the shell. Phase 0 has no sign-in yet, so the
-// shell shows a demo CEO/Admin in the demo workspace. Phase 1 replaces this with the
-// Supabase session, the user's workspace membership and a role-filtered nav.
-const DEMO_USER: ShellUser = {
-  id: "demo",
-  name: "Demo Admin",
-  email: "admin@codeautomation.dev",
-  role: "ceo_admin",
-  workspaceName: "CodeAutomation",
-  avatarUrl: null,
-};
+// Every signed-in page renders inside the shell. requireUser() sends anyone without an active membership to
+// the sign-in page, so a suspended person is locked out on their very next request.
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser();
+  const navIds = visibleNavIds(user.role);
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+  // Guard a section by URL: a role that cannot see it in the menu cannot open it by typing the address either.
+  const path = headers().get("x-pathname") ?? "/";
+  const section = NAV_ITEMS.find((n) => isNavActive(path, n));
+  if (section && !navIds.includes(section.id)) redirect("/");
+
+  const shellUser: ShellUser = {
+    id: user.userId,
+    name: user.fullName,
+    email: user.email,
+    role: user.role,
+    workspaceName: user.workspaceName,
+    avatarUrl: null,
+  };
   return (
-    <AppShell user={DEMO_USER} navIds={NAV_ITEMS.map((n) => n.id)}>
+    <AppShell user={shellUser} navIds={navIds}>
       {children}
     </AppShell>
   );

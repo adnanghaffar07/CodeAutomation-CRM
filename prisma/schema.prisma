@@ -31,6 +31,8 @@ model Workspace {
   slug      String            @unique
   createdAt DateTime          @default(now())
   members   WorkspaceMember[]
+  auditLogs AuditLog[]
+  credentials IntegrationCredential[]
 }
 
 /// Links a Supabase Auth user (auth.users.id) to a workspace with a CRM role.
@@ -47,4 +49,38 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@index([userId])
+}
+
+/// Append-only record of who did what. The app role can insert and read, never update or delete.
+model AuditLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  actorId     String?   @db.Uuid
+  actorEmail  String?
+  action      String
+  entityType  String?
+  entityId    String?
+  meta        Json?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([workspaceId, action])
+}
+
+/// Integration secrets (API keys, tokens), AES-256-GCM encrypted. Readable only by CEO/Admin.
+model IntegrationCredential {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  provider    String
+  label       String    @default("default")
+  ciphertext  String
+  /// Last 4 characters of the secret, so the UI can show which key is saved without decrypting.
+  hint        String    @default("")
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider, label])
 }

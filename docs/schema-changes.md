@@ -2,6 +2,13 @@
 
 Log every change to `prisma/schema.prisma` or `scripts/rls.sql` here (newest first): date, what, why. After any change run `npx prisma db push`, `npm run db:setup`, `npm run db:test`.
 
+## 2026-11-05: Phase 1 (users, audit, credentials)
+- Added `AuditLog` (append-only; indexes on workspace + time and workspace + action) and `IntegrationCredential` (encrypted `ciphertext`, `hint` = last 4 characters; unique per workspace, provider and label).
+- `WorkspaceMember` policy split into `member_select` (whole workspace) and insert/update/delete restricted to `ceo_admin`.
+- `AuditLog` policies: insert for any member of the workspace, select for `ceo_admin` and `manager`; `UPDATE`, `DELETE`, `TRUNCATE` revoked from `crm_app`.
+- `IntegrationCredential` policy: all operations for `ceo_admin` of the same workspace only.
+- Why: SPEC R-1.1, R-1.5, R-5.1 and R-7.7.
+
 ## 2026-11-05: initial schema (Phase 0)
 - Added enums `Role` (`ceo_admin`, `manager`, `sales_bd`, `data_researcher`) and `MemberStatus` (`active`, `suspended`).
 - Added `Workspace` (tenant root) and `WorkspaceMember` (Supabase user id + role + status, unique per workspace and user).

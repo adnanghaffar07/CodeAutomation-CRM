@@ -60,7 +60,7 @@ Each phase ends with: working UI + API + RLS + tests, docs updated, and a demo a
 
 ### Phase 1: Users, roles, permissions, audit (feature area 1)
 - Tables: `Workspace`, `WorkspaceMember` (user id from Supabase Auth, role, status; already in the Phase 0 schema), `Team`. Roles: CEO/Admin, Manager, Sales/BD, Data Researcher.
-- Login through **Supabase Auth** (`@supabase/ssr` cookies, admin-invited users, password reset; Google SSO optional), middleware that refreshes the session, CSRF origin check (port `middleware.ts`).
+- Login through **Supabase Auth** with email + password (`@supabase/ssr` cookies). Public sign-up is off; people are invited by an admin who passes on a single-use link (no email service yet). Google SSO is deferred (see the tracker). Middleware refreshes the session and checks the request origin.
 - Workspace isolation: `workspaceId` on every table, RLS policies on `app.workspace_id`; a second workspace in the seed proves a user in A never sees B.
 - Capability matrix; `withScope`/`withSystem`; RLS session variables; shared "visible records" predicate (decision 5).
 - Admin: invite/create users, change role, **immediate suspension** (kills sessions), reassign, explicit access revoke.

@@ -48,12 +48,16 @@ Supabase exposes the `public` schema over REST. `rls.sql` revokes all privileges
 ### 2.6 Schema changes
 Edit `prisma/schema.prisma`, then run `npm run setup` (push, security rules, isolation test). Log each change in `docs/schema-changes.md`. Schema edits are additive; destructive changes need a written plan.
 
-## 3. Identity and roles (Phase 1 contract, fixed now)
-- Supabase Auth proves **who** someone is (`auth.users.id`). It never decides what they may do.
+## 3. Identity and roles (built in Phase 1)
+- Supabase Auth proves **who** someone is (`auth.users.id`). It never decides what they may do. Public sign-up is off; accounts are created by an admin.
 - `WorkspaceMember` links `userId` (Supabase user id) to a `workspaceId` with a `role` (`ceo_admin | manager | sales_bd | data_researcher`) and `status` (`active | suspended`).
-- Per request: verify the Supabase session on the server, load the active `WorkspaceMember`, build a `Scope`, call `withScope`. A suspended member gets no scope.
-- Suspension also bans the Supabase user and revokes sessions, so it takes effect immediately.
-- Capabilities (`can(scope, "contacts.write")`) come from one matrix in `src/lib/permissions.ts` (Phase 1). UI hiding is a convenience only; the database and API enforce.
+- `currentUser()` (`src/lib/session.ts`) verifies the Supabase session, then loads the active `WorkspaceMember` **from the database on every request** and returns a `Scope`. A suspended or unknown member gets `null`, so suspension is immediate even while their cookie is still valid. Pages call `requireUser()`; route handlers and server actions call `currentUser()`.
+- Capabilities come from one matrix in `src/lib/permissions.ts` (`can(role, cap)`, `requireCapability`). Server actions check it first; the database enforces the same rules with RLS. UI hiding (`nav-access.ts`) is a convenience only. The shell layout also blocks a section by URL when the role cannot see it in the menu.
+- Member rows: everyone in a workspace can read the member list; only `ceo_admin` can insert, update or delete members (RLS policies `member_*`). The app prevents suspending yourself, changing your own role, or removing the last active CEO/Admin.
+- **One-time links:** an admin creates a person with `supabase.auth.admin.generateLink` and passes the link on (`/auth/confirm?token_hash=...&type=invite|recovery`). Opening it verifies the token, signs the person in and sends them to `/set-password`. Links are single-use and expire in about an hour. `npm run admin:link` does the same for the first admin and writes the link to `.invite-links/` (git-ignored) instead of printing it.
+- **Audit log** (`AuditLog`): append-only. `crm_app` has `INSERT` and `SELECT` only; `UPDATE`, `DELETE` and `TRUNCATE` are revoked. Any role can insert (via `audit(tx, scope, entry)`, written in the same transaction as the change); only `ceo_admin` and `manager` can read. Never put secrets in `meta`.
+- **Integration credentials** (`IntegrationCredential`): AES-256-GCM with `APP_ENCRYPTION_KEY` (`src/lib/crypto.ts`). RLS allows only `ceo_admin` in the same workspace. The `ciphertext` column is never selected into a page and never returned to the browser; the UI shows only provider, label and the last 4 characters (`hint`).
+- The secret key (`SUPABASE_SERVICE_ROLE_KEY`) is used only in `src/lib/supabase/admin.ts` and scripts, and must never be imported by client code.
 
 ## 4. Record visibility (Phase 2 contract, fixed now)
 - Each contact/account stores `createdById` (never changes), `ownerId`, and assignees in a link table.

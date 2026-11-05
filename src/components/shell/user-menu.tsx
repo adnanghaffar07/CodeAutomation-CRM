@@ -4,7 +4,6 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { toast } from "sonner";
 import { Keyboard, LogOut, Monitor, Moon, Rows3, Rows4, Shield, Sun } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -18,9 +17,9 @@ export const ROLE_LABEL: Record<string, string> = {
   ceo_admin: "CEO / Admin", manager: "Manager", sales_bd: "Sales / BD", data_researcher: "Data researcher",
 };
 
-// Phase 1 replaces this with Supabase Auth sign-out.
 export async function signOut(): Promise<void> {
-  toast.info("Sign-in arrives in Phase 1. You are viewing the demo workspace.");
+  try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* the cookie is cleared on the next request anyway */ }
+  window.location.href = "/login";
 }
 
 function useDensity(): [Density, (d: Density) => void] {

@@ -13,7 +13,8 @@
     "setup": "prisma db push --skip-generate && tsx scripts/db-setup.ts && tsx scripts/test-isolation.ts",
     "db:push": "prisma db push",
     "db:setup": "tsx scripts/db-setup.ts",
-    "db:test": "tsx scripts/test-isolation.ts"
+    "db:test": "tsx scripts/test-isolation.ts",
+    "admin:link": "tsx scripts/admin-link.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

@@ -27,9 +27,9 @@ export default function DashboardPage() {
 
       <section className="hero-banner relative mb-6 overflow-hidden rounded-card p-5 text-white md:p-7">
         <p className="text-caption2 font-semibold uppercase tracking-[0.06em] text-white/70">CodeAutomation CRM</p>
-        <h2 className="mt-1 text-title2 font-semibold md:text-title1">Foundation is in place</h2>
+        <h2 className="mt-1 text-title2 font-semibold md:text-title1">Welcome back</h2>
         <p className="mt-1 max-w-[60ch] text-body text-white/80">
-          The app shell, design system and database setup are ready. Sign-in and roles come next in Phase 1.
+          Sign-in, roles and the audit log are live. Contacts, accounts and imports come next.
         </p>
         <span aria-hidden className="absolute inset-y-0 left-0 w-1.5 bg-line-accent" />
       </section>

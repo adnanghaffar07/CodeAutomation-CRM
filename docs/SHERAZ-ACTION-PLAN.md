@@ -3,7 +3,7 @@
 Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Detail for each phase lives in [PLAN.md](PLAN.md).
 
 **Status key:** ⬜ not started · 🟦 in progress · ✅ done · ⛔ blocked
-**Last updated:** 2026-11-05 (Phase 0 done)
+**Last updated:** 2026-11-05 (Phase 1 built; waiting on the Supabase secret key to create the first admin)
 
 ---
 
@@ -12,7 +12,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | Phase | Name | Status | Started | Done | Notes |
 |---|---|---|---|---|---|
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
-| 1 | Users, roles, permissions, audit | ⬜ | | | |
+| 1 | Users, roles, permissions, audit | 🟦 | 2026-11-05 | | Built and tested. Needs the secret key to create the first admin. |
 | 2 | Accounts and contacts | ⬜ | | | |
 | 3 | Imports and data quality | ⬜ | | | |
 | 4 | Assignments and work verification | ⬜ | | | |
@@ -59,14 +59,32 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Exit check: typecheck, lint, 8 tests, build and DB isolation test all pass; shell checked in light, dark and phone width
 
 ### Phase 1: Users, roles, permissions, audit
-- [ ] User, session, role, team tables
-- [ ] Login and session cookies; CSRF origin check
-- [ ] Capability matrix for the 4 roles
-- [ ] RLS with shared "visible records" rule
-- [ ] Admin: create/invite users, change role, suspend, reassign, revoke access
-- [ ] Audit log
-- [ ] Encrypted integration credential storage
-- [ ] Exit check: RLS tests pass for every role
+- [x] Decisions: email + password sign-in; first admin sheraz@codeautomation.dev; public sign-up switched off in Supabase (2026-11-05)
+- [x] Supabase Auth wiring (browser, server and admin clients), session refresh middleware, CSRF origin check
+- [x] Sign-in page, sign-out, one-time access links (invite and password reset), set-password page
+- [x] Membership checked against the database on every request, so suspension is immediate
+- [x] Permission matrix for the 4 roles; role-based sidebar; sections guarded by URL
+- [x] Settings: Users (invite, change role, suspend/reinstate, access link), Audit log, Integration credentials
+- [x] Audit log is append-only (the app role cannot edit or delete entries)
+- [x] Integration credentials encrypted with AES-256-GCM, CEO/Admin only, never sent back to the browser
+- [x] Database tests: 25 checks (workspace isolation, roles, audit, credentials); 22 unit tests
+- [ ] **You:** paste the Supabase **Secret key** into `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (Supabase → Project Settings → API Keys)
+- [ ] Create your admin: `npm run admin:link -- sheraz@codeautomation.dev "Sheraz" ceo_admin`, open `.invite-links/sheraz@codeautomation.dev.txt`, follow the link, choose a password
+- [ ] Check in the browser: sign in, invite a test person, change role, suspend, audit log shows it
+- [ ] Commit and push
+
+**Deferred from Phase 1 (leftovers, not blocking)**
+| Item | Why deferred | Revisit |
+|---|---|---|
+| Google sign-in (SSO) | Decided: email + password first | Before go-live, or when a team asks |
+| Teams (grouping people for team filters) | Needed by dashboard filters, not by sign-in | Phase 6 |
+| Emailed invites and reset emails | No email service yet; admins pass one-time links by hand | When SMTP/Resend is chosen (Phase 9) |
+| Self-service "forgot password" page | Needs the email service above | Same as above |
+| Two-factor authentication | Not in the feature list | Before go-live decision |
+| Sign-in lockout / rate-limit beyond Supabase's own | Supabase already rate-limits sign-in | Phase 13 hardening |
+| Failed sign-in attempts in the audit log | Supabase does not tell us who tried | Phase 13 |
+| Per-record visibility (creator / owner / assignee) | Needs contact and account tables | Phase 2 |
+| Real-time session revoke on suspend | Membership check already blocks the next request; Supabase ban stops new sign-ins | Optional |
 
 ### Phase 2: Accounts and contacts
 - [ ] Account and contact schema (creator, owner, assignees, custom fields, suppression)
@@ -156,7 +174,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 |---|---|---|---|---|
 | 1 | Prisma + own auth vs Supabase Auth? | Phase 0 | Supabase Auth + Prisma + custom RBAC + workspace tenancy | 2026-11-05 |
 | 2 | Brand colour and logo? | Phase 0 | Logo supplied; colours from it | 2026-11-05 |
-| 3 | Login method? | Phase 1 | | |
+| 3 | Login method? | Phase 1 | Email + password; Google later | 2026-11-05 |
 | 4 | Team size and expected contact volume? | Phase 2 | | |
 | 5 | Google Workspace or Microsoft 365? Calendar/booking tool? | Phase 9 | | |
 | 6 | RingCentral plan has API and recording access? | Phase 10 | | |
