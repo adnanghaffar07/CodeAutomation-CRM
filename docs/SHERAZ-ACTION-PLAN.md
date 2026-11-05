@@ -2,6 +2,8 @@
 
 Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Detail for each phase lives in [PLAN.md](PLAN.md).
 
+**Project location:** `C:\Users\DELL\Documents\codeautomation\CRM` (from 2026-11-06). Git identity for this repo: `sheraz-CA` / `sheraz@codeautomation.dev`. The older `CodeAutomation-CRM` folder is no longer used.
+
 **Status key:** ⬜ not started · 🟦 in progress · ✅ done · ⛔ blocked
 **Last updated:** 2026-11-05 (Phases 0 to 2 done)
 
@@ -31,7 +33,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 ## 2. Before we start (your tasks)
 
 - [x] Git identity set for this repo (Sheraz-Ilyas / maan101011@gmail.com)
-- [x] Signed in to GitHub as Sheraz-Ilyas; pushes work
+- [x] GitHub sign-in worked for the earlier repo (Sheraz-Ilyas). The CRM folder now uses the sheraz-CA identity; sign in with that account on the first push from it
 - [x] Confirm Node 20.12+ is installed (Node 22.17)
 - [x] Docker: not needed. Using the Supabase cloud project instead (optional later)
 - [x] Supabase CLI (installed per project as a dev dependency; run with `npx supabase`)
