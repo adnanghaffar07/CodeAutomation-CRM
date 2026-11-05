@@ -3,7 +3,7 @@
 Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Detail for each phase lives in [PLAN.md](PLAN.md).
 
 **Status key:** ⬜ not started · 🟦 in progress · ✅ done · ⛔ blocked
-**Last updated:** 2026-11-05 (Phase 1 built; admin signed in; manual checks pending)
+**Last updated:** 2026-11-05 (Phase 1 done)
 
 ---
 
@@ -12,7 +12,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | Phase | Name | Status | Started | Done | Notes |
 |---|---|---|---|---|---|
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
-| 1 | Users, roles, permissions, audit | 🟦 | 2026-11-05 | | Built and tested; admin account works. Manual browser checks and push pending. |
+| 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
 | 2 | Accounts and contacts | ⬜ | | | |
 | 3 | Imports and data quality | ⬜ | | | |
 | 4 | Assignments and work verification | ⬜ | | | |
@@ -70,8 +70,8 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Database tests: 25 checks (workspace isolation, roles, audit, credentials); 22 unit tests
 - [x] **You:** paste the Supabase **Secret key** into `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` (Supabase → Project Settings → API Keys)
 - [x] Create your admin (signed in, password set): `npm run admin:link -- sheraz@codeautomation.dev "Sheraz" ceo_admin`, open `.invite-links/sheraz@codeautomation.dev.txt`, follow the link, choose a password
-- [ ] Check in the browser: sign in, invite a test person, change role, suspend, audit log shows it
-- [ ] Commit and push
+- [x] Checked in the browser (2026-11-05): sign in, credentials, invite, role change, suspend/reinstate, audit log, sign out and in
+- [x] Committed and pushed
 
 **Deferred from Phase 1 (leftovers, not blocking)**
 | Item | Why deferred | Revisit |
