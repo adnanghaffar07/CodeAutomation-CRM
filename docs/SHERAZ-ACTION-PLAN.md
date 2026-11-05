@@ -3,7 +3,7 @@
 Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Detail for each phase lives in [PLAN.md](PLAN.md).
 
 **Status key:** ⬜ not started · 🟦 in progress · ✅ done · ⛔ blocked
-**Last updated:** 2026-11-05 (Phase 1 done; Phase 2 built, awaiting your browser check)
+**Last updated:** 2026-11-05 (Phases 0 to 2 done)
 
 ---
 
@@ -13,7 +13,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 |---|---|---|---|---|---|
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
 | 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
-| 2 | Accounts and contacts | 🟦 | 2026-11-05 | | Built and tested. Browser check by you, attachments and push pending. |
+| 2 | Accounts and contacts | ✅ | 2026-11-05 | 2026-11-05 | Done and checked. File attachments are the one open item (see Phase 2 leftovers). |
 | 3 | Imports and data quality | ⬜ | | | |
 | 4 | Assignments and work verification | ⬜ | | | |
 | 5 | Sales pipeline | ⬜ | | | |
@@ -98,8 +98,8 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Duplicate emails refused without revealing whose record holds them
 - [x] Small sample data (24 companies, 80 contacts), removable: `npm run seed:sample -- clear`
 - [x] Tests: 47 database checks, 36 unit tests, lint, build
-- [ ] **You:** check in the browser (see the checklist in the chat), then say "phase 2 done"
-- [ ] Commit and push (branch `phase-2-contacts-accounts`)
+- [x] Checked in the browser by you (7-step checklist, 2026-11-05): all worked
+- [x] Committed and pushed (branch `phase-2-contacts-accounts`)
 
 **Deferred from Phase 2 (leftovers, not blocking)**
 | Item | Why deferred | Revisit |
