@@ -124,8 +124,8 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Background import via staging table
 - [x] Duplicate detection (in file and existing) without leaking restricted data
 - [x] Controlled updates; batch results and error report
-- [ ] Merge tool and missing-data report
-- [ ] Exit check: 500k-row import completes in the background
+- [x] Merge tool and missing-data report
+- [ ] Exit check: 500k-row import completes in the background (not met: imports are capped at 500 rows, measured 1,000 rows in ~43 s locally)
 
 ### Phase 4: Assignments and work verification
 
