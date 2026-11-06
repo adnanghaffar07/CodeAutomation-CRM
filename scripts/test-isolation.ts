@@ -290,10 +290,9 @@ async function main() {
     try { await withScope(asA, (tx) => tx.assignmentEvent.deleteMany({ where: { assignmentId: asg.id } })); } catch { eventDelete = true; }
     check("history: entries cannot be deleted", eventDelete);
     // Notifications (the bell): each person reads only their own, anyone may write one only as themselves, nothing is deleted.
-    const noticeForS1 = await withScope(asMgr, (tx) => tx.notification.create({
-      data: { workspaceId: wsA, userId: s1, actorId: asMgr.userId, kind: "assigned", title: `Notice ${tag}` },
-      select: { id: true },
-    }));
+    // createMany (no read-back): a manager may write for someone else, but cannot read their notification back.
+    await withScope(asMgr, (tx) => tx.notification.createMany({ data: [{ workspaceId: wsA, userId: s1, actorId: asMgr.userId, kind: "assigned", title: `Notice ${tag}` }] }));
+    const noticeForS1 = await admin.notification.findFirstOrThrow({ where: { workspaceId: wsA, title: `Notice ${tag}` }, select: { id: true } });
     check("notifications: the recipient sees theirs", (await withScope(asS1, (tx) => tx.notification.findMany({ where: { id: noticeForS1.id } }))).length === 1);
     check("notifications: someone else does not", (await withScope(asS2, (tx) => tx.notification.findMany({ where: { id: noticeForS1.id } }))).length === 0);
     check("notifications: another workspace sees none", (await withScope(asB, (tx) => tx.notification.findMany({ where: { id: noticeForS1.id } }))).length === 0);
