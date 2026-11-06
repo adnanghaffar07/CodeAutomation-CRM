@@ -21,7 +21,7 @@ Prisma CLI reads `.env`; Next.js reads `.env.local`. `npm run db:setup` keeps bo
 import { withScope, withSystem } from "@/lib/scope";
 
 await withScope({ userId, workspaceId, role }, (tx) => tx.contact.findMany(...));  // a signed-in user
-await withSystem((tx) => tx.job.findMany(...));                                    // background jobs, sign-in lookups
+await withSystem((tx) => tx.importBatch.findMany(...));                            // background work, sign-in lookups
 ```
 - Never import `prisma` from `@/lib/db` in a page, route or action. Only `scope.ts`, auth code and scripts may.
 - `withScope` opens a transaction and sets, transaction-locally: `app.user_id`, `app.workspace_id`, `app.role`.
@@ -69,8 +69,8 @@ Edit `prisma/schema.prisma`, then run `npm run setup` (push, security rules, iso
 - **Actions** (`src/app/(app)/contacts|accounts|views/actions.ts`): capability check, caller's scope, a timeline entry for every change. Only managers and the CEO/Admin may change owners or delete. Pure validation lives in `src/lib/records/schemas.ts` so tests can load it.
 - Sample data (`npm run seed:sample`) is marked `source = "sample-data"` and tagged `sample`; `-- clear` removes exactly those rows.
 
-## 5. Background work (Phase 3+ contract)
-A `Job` table (Postgres queue, `FOR UPDATE SKIP LOCKED`) and a standalone worker (`npm run worker`). Request handlers enqueue; the worker does the work. Jobs carry `workspaceId` and run under `withSystem` + explicit filters.
+## 5. Background work
+None yet. Imports run inside the upload request and are capped at 500 rows per file (see `src/lib/imports.ts`), so no worker is needed. The `Job` table was removed in Phase 3 (see `schema-changes.md`). When background processing is built (large imports, exports, sync), re-add a queue table with `FOR UPDATE SKIP LOCKED`, run jobs under `withSystem` with explicit `workspaceId` filters, and document it here.
 
 ## 6. API conventions
 - Route handlers and server actions validate input with `zod`, call `withScope`, return JSON `{ error, code }` on failure with the right HTTP status.
