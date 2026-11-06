@@ -15,8 +15,7 @@
     "db:setup": "tsx scripts/db-setup.ts",
     "db:test": "tsx scripts/test-isolation.ts",
     "admin:link": "tsx scripts/admin-link.ts",
-    "seed:sample": "tsx scripts/seed-sample.ts",
-    "worker": "tsx scripts/worker.ts"
+    "seed:sample": "tsx scripts/seed-sample.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

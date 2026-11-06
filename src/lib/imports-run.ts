@@ -1,4 +1,4 @@
-// Background import worker logic (SPEC R-8.6). Runs one queued job at a time.
+// Import logic (SPEC R-8.6). Runs inside the upload request; the file size is capped in imports.ts.
 // Each row is applied under the UPLOADER's own scope, so row-level security decides what a duplicate check or an
 // update can see. A duplicate the uploader cannot see is reported only as "duplicate", never with whose record it is.
 import { withScope, withSystem, type Scope } from "@/lib/scope";
@@ -9,26 +9,6 @@ import type { Prisma } from "@prisma/client";
 const PAGE = 500;
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "P2002";
-
-/** Claims the oldest due job (SKIP LOCKED, so several workers never take the same one) and returns its id. */
-export async function claimJob(): Promise<{ id: string; kind: string; payload: Record<string, unknown> } | null> {
-  return withSystem(async (tx) => {
-    const rows = await tx.$queryRaw<{ id: string; kind: string; payload: Record<string, unknown> }[]>`
-      select id, kind, payload from "Job" where status = 'queued' and "runAt" <= now()
-      order by "runAt" asc limit 1 for update skip locked`;
-    const job = rows[0];
-    if (!job) return null;
-    await tx.job.update({ where: { id: job.id }, data: { status: "running", attempts: { increment: 1 } } });
-    return job;
-  });
-}
-
-export async function finishJob(id: string, error?: string) {
-  await withSystem((tx) => tx.job.update({
-    where: { id },
-    data: error ? { status: "failed", lastError: error.slice(0, 500), finishedAt: new Date() } : { status: "done", finishedAt: new Date() },
-  }));
-}
 
 /** Who applies the import: the uploader, with their role as of now. Null if they are no longer an active member. */
 async function uploaderScope(workspaceId: string, userId: string): Promise<(Scope & { email: string }) | null> {

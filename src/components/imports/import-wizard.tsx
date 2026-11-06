@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { createImportBatch, importErrorReport, importStatus, queueImport, stageImportRows } from "@/app/(app)/imports/actions";
+import { createImportBatch, importErrorReport, importStatus, startImport, stageImportRows } from "@/app/(app)/imports/actions";
 import { checkRow, IMPORT_FIELDS, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, mappingFromIndex, parseCsv, suggestMapping, type ImportKind } from "@/lib/imports";
 
 const CHUNK = 500;
@@ -64,12 +64,12 @@ export function ImportWizard() {
       const r = await stageImportRows({ batchId: id, startRow: start + 1, rows: parsed.rows.slice(start, start + CHUNK) });
       if (!r.ok) { setBusy(null); return toast.error(r.error); }
     }
-    setBusy("Queuing import…");
-    const q = await queueImport(id);
+    setBusy("Adding records…");
+    const q = await startImport(id);
     setBusy(null);
     if (!q.ok) return toast.error(q.error);
     setBatchId(id);
-    toast.success("Import queued. It runs in the background.");
+    toast.success("Import finished.");
     router.refresh();
   }
 
@@ -103,7 +103,7 @@ export function ImportWizard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>{b?.finished ? (b.status === "failed" ? "Import failed" : "Import finished") : "Importing in the background"}</CardTitle>
+          <CardTitle>{b?.status === "failed" ? "Import failed" : "Import finished"}</CardTitle>
           <CardDescription>{b ? `${b.fileName}: ${b.totalRows.toLocaleString()} rows` : "Checking progress…"}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -129,7 +129,7 @@ export function ImportWizard() {
       <Card>
         <CardHeader>
           <CardTitle>1. Choose a file</CardTitle>
-          <CardDescription>CSV only. The first row must be column names. Up to {MAX_IMPORT_ROWS.toLocaleString()} rows.</CardDescription>
+          <CardDescription>CSV only. The first row must be column names. Up to {MAX_IMPORT_ROWS.toLocaleString()} rows and 2 MB per file.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="What are you importing?">

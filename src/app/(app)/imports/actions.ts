@@ -1,10 +1,12 @@
 "use server";
 // Import wizard actions. The browser parses the CSV and sends rows in chunks (each well under the 4.5 MB request
-// limit); the worker (scripts/worker.ts) applies them in the background. Every call runs under the caller's scope.
+// limit), then startImport applies them in the same request. Every call runs under the caller's scope.
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { withScope } from "@/lib/scope";
 import { actor, errorMessage, fail, type ActionResult } from "@/lib/records/server";
 import { IMPORT_FIELDS, MAX_IMPORT_ROWS, type ImportKind } from "@/lib/imports";
+import { runImportBatch } from "@/lib/imports-run";
 
 const MAX_CHUNK = 1000;
 const MAX_COLS = 80;
@@ -74,19 +76,20 @@ export async function stageImportRows(input: z.input<typeof stageSchema>): Promi
   }
 }
 
-/** Ends staging and puts the job in the queue. The worker picks it up. */
-export async function queueImport(batchId: string): Promise<ActionResult> {
+/** Ends staging and applies the rows now, in this request. Small files only (see MAX_IMPORT_ROWS). */
+export async function startImport(batchId: string): Promise<ActionResult> {
   try {
     const me = await actor("imports.use");
     if (!z.string().uuid().safeParse(batchId).success) return fail("Invalid request.");
     await withScope(me.scope, async (tx) => {
       const b = await tx.importBatch.findUnique({ where: { id: batchId }, select: { status: true, uploadedById: true, _count: { select: { rows: true } } } });
       if (!b || b.uploadedById !== me.userId) throw new Error("That import isn't open for changes.");
-      if (b.status !== "staging") throw new Error("That import has already been queued.");
+      if (b.status !== "staging") throw new Error("That import has already been run.");
       if (b._count.rows === 0) throw new Error("No rows were received.");
       await tx.importBatch.update({ where: { id: batchId }, data: { status: "queued" } });
-      await tx.job.create({ data: { workspaceId: me.workspaceId, kind: "import", payload: { batchId } } });
     });
+    await runImportBatch(batchId);
+    revalidatePath("/imports");
     return { ok: true };
   } catch (e) {
     return fail(errorMessage(e));

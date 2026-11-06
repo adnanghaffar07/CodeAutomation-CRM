@@ -5,8 +5,9 @@ import { fullName, normDomain, normEmail } from "@/lib/records/text";
 
 export type ImportKind = "contact" | "account";
 
-export const MAX_IMPORT_ROWS = 500_000;
-export const MAX_IMPORT_BYTES = 50 * 1024 * 1024; // the file is read in the browser and sent in chunks
+// The import runs inside one request (Vercel time limit), so files stay small.
+export const MAX_IMPORT_ROWS = 1_000;
+export const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 
 /** Fields a column can map to, with the label shown in the mapping screen. */
 export const IMPORT_FIELDS: Record<ImportKind, Record<string, string>> = {
