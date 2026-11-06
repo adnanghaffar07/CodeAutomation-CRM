@@ -364,6 +364,8 @@ enum Recurrence {
 /// open (to do) → verified (submitted and passed the system checks) → approved, or rejected. Returned work goes back to open.
 enum AssignmentStatus {
   open
+  in_progress
+  on_hold
   verified
   approved
   rejected
@@ -416,7 +418,9 @@ model Assignment {
   recurrence       Recurrence           @default(none)
   status           AssignmentStatus     @default(open)
   submittedAt      DateTime?
+  startedAt        DateTime?
   verifiedAt       DateTime?
+  holdReason       String?
   decidedAt        DateTime?
   decidedById      String?              @db.Uuid
   decisionComment  String?
@@ -463,4 +467,20 @@ model AssignmentEvent {
   assignment   Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, assignmentId, createdAt])
+}
+
+/// An in-app notification for one person (the bell). Written by the person who caused it, and read only by its recipient.
+model Notification {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  userId      String    @db.Uuid
+  actorId     String    @db.Uuid
+  kind        String
+  title       String
+  body        String?
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, userId, readAt, createdAt(sort: Desc)])
 }

@@ -2,6 +2,13 @@
 
 Log every change to `prisma/schema.prisma` or `scripts/rls.sql` here (newest first): date, what, why. After any change run `npx prisma db push`, `npm run db:setup`, `npm run db:test`.
 
+## 2026-11-06: notifications and in-progress / on-hold statuses (Phase 4 follow-up)
+- Added `Notification` (one in-app notification per recipient: kind, title, body, link, read time; `actorId` is who caused it). Index on recipient, read time and time.
+- Added statuses `in_progress` and `on_hold` to `AssignmentStatus`, and fields `startedAt` and `holdReason` on `Assignment`.
+- `scripts/rls.sql`: a person reads and marks read only their own notifications; anyone in the workspace may create one, but only as themselves; nothing is deleted by the app role.
+- To apply to a database: `npx prisma db push`, then `npm run db:setup`, then `npm run db:test`.
+- Why: owner request (notifications bell; Start, Put on hold and Resume). SPEC R-4.7, R-4.4.
+
 ## 2026-11-06: assignments and work verification (Phase 4)
 - Added enums `TaskType`, `Priority`, `Recurrence`, `AssignmentStatus`, `EvidenceKind`.
 - Added `AssignmentBatch` (one piece of work: task type, record type, instructions, completion criteria, priority, deadline, repeats, optional target), `Assignment` (one record for one person: status, deadline, submitted and decided times, decision comment), `AssignmentEvidence` (notes and links) and `AssignmentEvent` (append-only history). Foreign keys only from `Assignment` to its batch, and from evidence and history to their assignment; `recordType`/`recordId` point at a Contact or Account without a foreign key, as `Activity` does.

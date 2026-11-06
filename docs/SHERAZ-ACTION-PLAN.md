@@ -157,7 +157,7 @@ Deferred from Phase 4 (leftovers, not blocking):
 
 | Item | Why deferred | Revisit |
 |---|---|---|
-| Reminders by email, push or a notification list | No notification system yet; only in-app flags (Due soon, Missing evidence) | Phase 7 (notifications) or Phase 9 |
+| Email or push notifications | The bell is built (in-app only); email and push need the outgoing mail setup | Phase 7 (notifications) or Phase 9 |
 | AI check of work against completion criteria (SPEC R-10.5) | The check today is evidence present and record visible; criteria are shown, not checked | Phase 12 |
 | Evidence as uploaded files | Evidence is a note or a link; record attachments are not linked to assignments yet | Later, with attachment links |
 | Assign from a record page | Assigning is on the New assignment page only | Small follow-up |
@@ -167,7 +167,7 @@ Deferred from Phase 4 (leftovers, not blocking):
 | Repeats only start when the previous round is approved | No calendar scheduler (CONTRACTS §5: background work) | Background work phase |
 | Bulk approve or return | Not built | Later |
 | Assignment counts on the dashboards | Dashboards arrive in Phase 6 | Phase 6 |
-| Browser walk-through for Phase 4 | Owner to run through the checklist; `npm run db:test` passed | Before the Phase 4 exit check |
+| Browser walk-through for Phase 4 | Owner to run through the checklist; `npm run db:test` passed before the notifications and in-progress change, which needs it run again | Before the Phase 4 exit check |
 
 ### Phase 5: Sales pipeline
 

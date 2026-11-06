@@ -1,7 +1,7 @@
 // Pure rules for assignments (src/lib/assignments.ts): flags, the lifecycle, deadlines and validation.
 import { describe, expect, it } from "vitest";
 import {
-  batchSchema, decisionNeedsComment, dueFromDate, evidenceSchema, flagsFor, nextDueDate, reviewResult, reviewSchema,
+  batchSchema, canHold, canStart, decisionNeedsComment, resumeStatus, dueFromDate, evidenceSchema, flagsFor, nextDueDate, reviewResult, reviewSchema,
   submissionProblems,
 } from "@/lib/assignments";
 
@@ -31,6 +31,13 @@ describe("flagsFor", () => {
     expect(flagsFor({ status: "open", dueAt: hours(10), requiresEvidence: true, evidenceCount: 0 }, NOW).missingEvidence).toBe(true);
     expect(flagsFor({ status: "open", dueAt: hours(10), requiresEvidence: true, evidenceCount: 1 }, NOW).missingEvidence).toBe(false);
     expect(flagsFor({ status: "open", dueAt: hours(10), requiresEvidence: false, evidenceCount: 0 }, NOW).missingEvidence).toBe(false);
+  });
+
+  it("flags work in progress like work to do, but not work on hold", () => {
+    expect(flagsFor({ status: "in_progress", dueAt: hours(-1), requiresEvidence: false, evidenceCount: 0 }, NOW).overdue).toBe(true);
+    expect(flagsFor({ status: "on_hold", dueAt: hours(-1), requiresEvidence: true, evidenceCount: 0 }, NOW)).toEqual({
+      overdue: false, dueSoon: false, missingEvidence: false,
+    });
   });
 
   it("never flags work that is no longer open", () => {
@@ -93,8 +100,22 @@ describe("reviewResult (the lifecycle)", () => {
     expect(reviewResult("verified", "reject")).toBe("rejected");
   });
 
-  it("return sends verified work back to open", () => {
-    expect(reviewResult("verified", "return")).toBe("open");
+  it("return sends verified work back to in progress", () => {
+    expect(reviewResult("verified", "return")).toBe("in_progress");
+  });
+
+  it("start is only from to do; resume goes back to in progress if it had started, otherwise to do", () => {
+    expect(canStart("open")).toBe(true);
+    expect(canStart("in_progress")).toBe(false);
+    expect(resumeStatus(new Date())).toBe("in_progress");
+    expect(resumeStatus(null)).toBe("open");
+  });
+
+  it("hold is allowed while the work is still to do, not after it is submitted", () => {
+    expect(canHold("open")).toBe(true);
+    expect(canHold("in_progress")).toBe(true);
+    expect(canHold("on_hold")).toBe(false);
+    expect(canHold("verified")).toBe(false);
   });
 
   it("nothing can be decided before it is submitted, or after it is decided", () => {

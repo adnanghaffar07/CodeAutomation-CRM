@@ -401,3 +401,32 @@ grant select, insert, update, delete on "AssignmentBatch", "Assignment", "Assign
 revoke all on "AssignmentBatch", "Assignment", "AssignmentEvidence", "AssignmentEvent" from anon, authenticated
 --#
 revoke update, delete, truncate on "AssignmentEvidence", "AssignmentEvent" from crm_app
+--#
+-- ───────────────────────── Phase 4 follow-up: notifications ─────────────────────────
+-- Each person reads and marks read only their own notifications. Anyone in the workspace may create one, but only as
+-- themselves (the actor). Nothing is ever deleted by the app role.
+alter table "Notification" enable row level security
+--#
+alter table "Notification" force row level security
+--#
+drop policy if exists notif_select on "Notification"
+--#
+drop policy if exists notif_insert on "Notification"
+--#
+drop policy if exists notif_update on "Notification"
+--#
+create policy notif_select on "Notification" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and "userId" = app.user_id()))
+--#
+create policy notif_insert on "Notification" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "actorId" = app.user_id()))
+--#
+create policy notif_update on "Notification" for update to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and "userId" = app.user_id()))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "userId" = app.user_id()))
+--#
+grant select, insert, update on "Notification" to crm_app
+--#
+revoke delete, truncate on "Notification" from crm_app
+--#
+revoke all on "Notification" from anon, authenticated

@@ -87,10 +87,12 @@ export default async function Page({ params }: { params: { id: string } }) {
                 <Field label="Priority">{PRIORITY_LABEL[a.priority]}</Field>
                 <Field label="Repeats">{RECURRENCE_LABEL[a.recurrence]}</Field>
                 <Field label="Evidence">{a.requiresEvidence ? `Required (${a.evidence.length} added)` : "Not required"}</Field>
+                {a.startedAt && <Field label="Started">{formatWhen(a.startedAt)}</Field>}
                 {a.submittedAt && <Field label="Submitted">{formatWhen(a.submittedAt)}</Field>}
                 {a.decidedAt && <Field label="Decided">{formatWhen(a.decidedAt)}{a.decidedById ? ` by ${names.get(a.decidedById) ?? "a former member"}` : ""}</Field>}
                 {a.batch.instructions && <div className="sm:col-span-2"><div className="text-muted-foreground">Instructions</div><p className="whitespace-pre-line">{a.batch.instructions}</p></div>}
                 {a.batch.completionCriteria && <div className="sm:col-span-2"><div className="text-muted-foreground">Done when</div><p className="whitespace-pre-line">{a.batch.completionCriteria}</p></div>}
+                {a.status === "on_hold" && a.holdReason && <div className="sm:col-span-2 rounded-card-inner bg-muted p-3"><div className="text-muted-foreground">On hold because</div><p className="whitespace-pre-line">{a.holdReason}</p></div>}
                 {decision && <div className="sm:col-span-2 rounded-card-inner bg-muted p-3"><div className="text-muted-foreground">Last comment</div><p className="whitespace-pre-line">{decision}</p></div>}
               </CardContent>
             </Card>

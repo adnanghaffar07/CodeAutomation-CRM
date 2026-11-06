@@ -1,5 +1,8 @@
 // Pure rules for assignments and work verification (SPEC §R-4). No database or request code here, so vitest can load it.
-// Lifecycle: open → (submit: evidence checked by the system) → verified → approved | rejected; return sends verified back to open.
+// Lifecycle:
+//   open (To do) → in_progress (Start) → verified (Submit: evidence checked by the system; "Awaiting approval")
+//   verified → approved (Completed) | rejected | back to in_progress (Return for changes)
+//   open or in_progress → on_hold (with a reason) → back to in_progress, or open if it never started
 import { z } from "zod";
 import { addDays, addMonths, addWeeks } from "date-fns";
 
@@ -19,10 +22,15 @@ export const RECURRENCE_LABEL: Record<Recurrence, string> = {
   none: "Does not repeat", daily: "Every day", weekly: "Every week", monthly: "Every month",
 };
 
-export const ASSIGNMENT_STATUSES = ["open", "verified", "approved", "rejected"] as const;
+export const ASSIGNMENT_STATUSES = ["open", "in_progress", "on_hold", "verified", "approved", "rejected"] as const;
 export type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number];
 export const STATUS_LABEL: Record<AssignmentStatus, string> = {
-  open: "To do", verified: "Awaiting approval", approved: "Approved", rejected: "Rejected",
+  open: "To do",
+  in_progress: "In progress",
+  on_hold: "On hold",
+  verified: "Awaiting approval",
+  approved: "Completed",
+  rejected: "Rejected",
 };
 
 export const EVIDENCE_KINDS = ["note", "link"] as const;
@@ -32,6 +40,9 @@ export type EvidenceKind = (typeof EVIDENCE_KINDS)[number];
 export const EVENT = {
   assigned: "assigned",
   reassigned: "reassigned",
+  started: "started",
+  held: "held",
+  resumed: "resumed",
   evidenceAdded: "evidence_added",
   submitted: "submitted",
   verified: "verified",
@@ -45,6 +56,11 @@ export const EVENT = {
 /** "Due soon" and "missing evidence" look this far ahead. */
 export const SOON_MS = 48 * 60 * 60 * 1000;
 
+/** Work the person still has to do (not submitted, not on hold). */
+export const ACTIVE_STATUSES: AssignmentStatus[] = ["open", "in_progress"];
+/** Work the person may add evidence to, or submit. */
+export const WORKABLE_STATUSES: AssignmentStatus[] = ["open", "in_progress"];
+
 export type FlagInput = {
   status: AssignmentStatus;
   dueAt: Date | null;
@@ -55,13 +71,14 @@ export type FlagInput = {
 export type Flags = { overdue: boolean; dueSoon: boolean; missingEvidence: boolean };
 
 /**
- * Warnings shown beside the work (SPEC R-4.9). Only open work is flagged; approved and rejected work is finished.
- * - overdue: past its deadline and not yet submitted.
+ * Warnings shown beside the work (SPEC R-4.9). Only work that is still to do (To do or In progress) is flagged;
+ * work on hold is paused, and submitted or finished work is done.
+ * - overdue: past its deadline.
  * - dueSoon: deadline within 48 hours.
  * - missingEvidence: evidence is required, none is attached, and the deadline is within 48 hours or has passed.
  */
 export function flagsFor(a: FlagInput, now: Date = new Date()): Flags {
-  if (a.status !== "open" || !a.dueAt) return { overdue: false, dueSoon: false, missingEvidence: false };
+  if (!ACTIVE_STATUSES.includes(a.status) || !a.dueAt) return { overdue: false, dueSoon: false, missingEvidence: false };
   const due = a.dueAt.getTime();
   const overdue = due < now.getTime();
   const dueSoon = !overdue && due <= now.getTime() + SOON_MS;
@@ -78,6 +95,20 @@ export function nextDueDate(dueAt: Date | null, recurrence: Recurrence, now: Dat
   return addMonths(base, 1);
 }
 
+/** Starting is allowed only from To do. */
+export const canStart = (status: AssignmentStatus) => status === "open";
+
+/** Putting on hold is allowed while the work is still to do. */
+export const canHold = (status: AssignmentStatus) => WORKABLE_STATUSES.includes(status);
+
+/** Resuming goes back to In progress if the person had started, otherwise To do. */
+export function resumeStatus(startedAt: Date | null): AssignmentStatus {
+  return startedAt ? "in_progress" : "open";
+}
+
+/** Reassigning is allowed while the work is still to do or on hold. */
+export const canReassign = (status: AssignmentStatus) => status === "open" || status === "in_progress" || status === "on_hold";
+
 /** The system checks run when work is submitted. An empty list means it passes and becomes "awaiting approval". */
 export function submissionProblems(input: { requiresEvidence: boolean; evidenceCount: number; recordVisible: boolean }): string[] {
   const problems: string[] = [];
@@ -93,10 +124,10 @@ export function reviewResult(status: AssignmentStatus, decision: ReviewDecision)
   if (status !== "verified") return null;
   if (decision === "approve") return "approved";
   if (decision === "reject") return "rejected";
-  return "open";
+  return "in_progress";
 }
 
-/** Returning and rejecting need a reason so the employee knows what to change. */
+/** Returning and rejecting need a reason so the employee knows what to change. Putting on hold needs one too. */
 export const decisionNeedsComment = (decision: ReviewDecision) => decision !== "approve";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -154,3 +185,23 @@ export const reassignSchema = z.object({
   assigneeId: uuid,
   reason: z.string().trim().min(3, "Give a reason for the change.").max(500),
 });
+
+export const holdSchema = z.object({
+  assignmentId: uuid,
+  reason: z.string().trim().min(3, "Say why it is on hold.").max(500),
+});
+
+export const idSchema = uuid;
+
+/** Plain words for a notification about one assignment event (see notify in tasks/actions.ts). */
+export const NOTIFY = {
+  assigned: "New assignment",
+  reassigned: "Assignment given to you",
+  submitted: "Work submitted for approval",
+  returned: "Work returned for changes",
+  approved: "Work approved",
+  rejected: "Work rejected",
+  held: "Work put on hold",
+  resumed: "Work resumed",
+  repeat: "Next round started",
+} as const;

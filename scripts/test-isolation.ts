@@ -289,7 +289,25 @@ async function main() {
     let eventDelete = false;
     try { await withScope(asA, (tx) => tx.assignmentEvent.deleteMany({ where: { assignmentId: asg.id } })); } catch { eventDelete = true; }
     check("history: entries cannot be deleted", eventDelete);
+    // Notifications (the bell): each person reads only their own, anyone may write one only as themselves, nothing is deleted.
+    const noticeForS1 = await withScope(asMgr, (tx) => tx.notification.create({
+      data: { workspaceId: wsA, userId: s1, actorId: asMgr.userId, kind: "assigned", title: `Notice ${tag}` },
+      select: { id: true },
+    }));
+    check("notifications: the recipient sees theirs", (await withScope(asS1, (tx) => tx.notification.findMany({ where: { id: noticeForS1.id } }))).length === 1);
+    check("notifications: someone else does not", (await withScope(asS2, (tx) => tx.notification.findMany({ where: { id: noticeForS1.id } }))).length === 0);
+    check("notifications: another workspace sees none", (await withScope(asB, (tx) => tx.notification.findMany({ where: { id: noticeForS1.id } }))).length === 0);
+    let noticeSpoof = false;
+    try { await withScope(asS2, (tx) => tx.notification.create({ data: { workspaceId: wsA, userId: s1, actorId: s1, kind: "x", title: "spoof" } })); } catch { noticeSpoof = true; }
+    check("notifications: cannot be written as someone else", noticeSpoof);
+    check("notifications: someone else cannot mark it read", (await withScope(asS2, (tx) => tx.notification.updateMany({ where: { id: noticeForS1.id }, data: { readAt: new Date() } }))).count === 0);
+    check("notifications: the recipient can mark it read", (await withScope(asS1, (tx) => tx.notification.updateMany({ where: { id: noticeForS1.id }, data: { readAt: new Date() } }))).count === 1);
+    let noticeDelete = false;
+    try { await withScope(asS1, (tx) => tx.notification.deleteMany({ where: { id: noticeForS1.id } })); } catch { noticeDelete = true; }
+    check("notifications: cannot be deleted", noticeDelete);
+
   } finally {
+    await admin.notification.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.assignmentEvent.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.assignmentEvidence.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.assignment.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });

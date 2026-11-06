@@ -1,7 +1,7 @@
 "use server";
 // Assignments and work verification (SPEC §R-4). Every action: checks the capability, runs under the caller's scope
-// (row-level security limits what they can see and change), appends to the assignment history, and writes to the
-// record's timeline. Pure rules live in src/lib/assignments.ts.
+// (row-level security limits what they can see and change), appends to the assignment history, writes to the record's
+// timeline, and notifies the people who need to act next. Pure rules live in src/lib/assignments.ts.
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -9,11 +9,14 @@ import type { Prisma } from "@prisma/client";
 import type { Tx } from "@/lib/db";
 import { withScope } from "@/lib/scope";
 import { audit } from "@/lib/audit";
+import { can } from "@/lib/permissions";
 import { actor, errorMessage, fail, logActivity, type ActionResult } from "@/lib/records/server";
 import type { CurrentUser } from "@/lib/session";
+import { notifyPeople, reviewerIds, type NoticeInput } from "@/lib/notify";
 import {
-  EVENT, batchSchema, dueFromDate, evidenceSchema, nextDueDate, reassignSchema, reviewResult,
-  reviewSchema, submissionProblems, type AssignmentStatus, type ReviewDecision,
+  EVENT, NOTIFY, batchSchema, canHold, canReassign, canStart, dueFromDate, evidenceSchema, holdSchema, idSchema,
+  nextDueDate, reassignSchema, resumeStatus, reviewResult, reviewSchema, submissionProblems, WORKABLE_STATUSES,
+  type AssignmentStatus, type ReviewDecision,
 } from "@/lib/assignments";
 
 type RecordKind = "contact" | "account";
@@ -62,6 +65,12 @@ async function recordEvents(tx: Tx, me: CurrentUser, events: EventInput[]): Prom
 }
 
 const CANNOT_SEE = "That assignment doesn't exist, or you can't see it.";
+const linkFor = (id: string) => `/tasks/${id}`;
+
+/** Loads an assignment the caller can see (row-level security decides). */
+async function loadAssignment(tx: Tx, id: string) {
+  return tx.assignment.findUnique({ where: { id } });
+}
 
 export async function createAssignmentBatch(input: unknown): Promise<ActionResult<{ id: string; count: number }>> {
   try {
@@ -72,7 +81,7 @@ export async function createAssignmentBatch(input: unknown): Promise<ActionResul
     const ids = [...new Set(v.recordIds)];
     const dueAt = dueFromDate(v.dueDate || null);
 
-    return await withScope(me.scope, async (tx): Promise<ActionResult<{ id: string; count: number }>> => {
+    const result = await withScope(me.scope, async (tx): Promise<ActionResult<{ id: string; count: number }>> => {
       const assignee = await tx.workspaceMember.findFirst({ where: { userId: v.assigneeId, status: "active" }, select: { userId: true, fullName: true } });
       if (!assignee) return fail("That person is not an active member of this workspace.");
 
@@ -105,15 +114,19 @@ export async function createAssignmentBatch(input: unknown): Promise<ActionResul
       await logActivity(tx, me, found.map((r) => ({
         recordType: v.recordType, recordId: r.id, kind: "task" as const, summary: `Assigned to ${assignee.fullName}: ${v.title}`,
       })));
+      await notifyPeople(tx, me, [{
+        userId: v.assigneeId, kind: "assigned", title: `${NOTIFY.assigned}: ${v.title}`,
+        body: `${found.length} ${found.length === 1 ? "record" : "records"}${dueAt ? ` · due ${dueAt.toISOString().slice(0, 10)}` : ""}`,
+        link: `/tasks/batch/${batch.id}`,
+      }]);
       await audit(tx, me.scope, {
         action: "assignment.created", entityType: "AssignmentBatch", entityId: batch.id,
         meta: { count: found.length, taskType: v.taskType, recordType: v.recordType },
       });
       return { ok: true, id: batch.id, count: found.length };
-    }).then((r) => {
-      if (r.ok) revalidatePath("/tasks");
-      return r;
     });
+    if (result.ok) revalidatePath("/tasks");
+    return result;
   } catch (e) {
     return fail(errorMessage(e));
   }
@@ -149,6 +162,29 @@ export async function searchRecordsForAssignment(input: unknown): Promise<Action
   }
 }
 
+/** Only the assignee moves their own work: start, add evidence, submit. Managers review. */
+export async function startAssignment(assignmentId: unknown): Promise<ActionResult<{ status: AssignmentStatus }>> {
+  try {
+    const me = await actor("assignments.read");
+    const id = idSchema.safeParse(assignmentId);
+    if (!id.success) return fail("Invalid request.");
+    return await withScope(me.scope, async (tx): Promise<ActionResult<{ status: AssignmentStatus }>> => {
+      const a = await loadAssignment(tx, id.data);
+      if (!a) return fail(CANNOT_SEE);
+      if (a.assigneeId !== me.userId) return fail("Only the person this is assigned to can start it.");
+      if (!canStart(a.status)) return fail("This work has already been started. Use Put on hold or Submit.");
+      const now = new Date();
+      await tx.assignment.update({ where: { id: a.id }, data: { status: "in_progress", startedAt: now } });
+      await recordEvents(tx, me, [{ assignmentId: a.id, action: EVENT.started, fromStatus: "open", toStatus: "in_progress" }]);
+      revalidatePath("/tasks");
+      revalidatePath(linkFor(a.id));
+      return { ok: true, status: "in_progress" };
+    });
+  } catch (e) {
+    return fail(errorMessage(e));
+  }
+}
+
 export async function addEvidence(input: unknown): Promise<ActionResult> {
   try {
     const me = await actor("assignments.read");
@@ -159,12 +195,12 @@ export async function addEvidence(input: unknown): Promise<ActionResult> {
       const a = await tx.assignment.findUnique({ where: { id: v.assignmentId }, select: { id: true, status: true, assigneeId: true } });
       if (!a) return fail(CANNOT_SEE);
       if (a.assigneeId !== me.userId) return fail("Only the person this is assigned to can add evidence.");
-      if (a.status !== "open") return fail("Evidence can only be added while the work is still to do.");
+      if (!WORKABLE_STATUSES.includes(a.status)) return fail("Evidence can only be added while the work is to do or in progress.");
       await tx.assignmentEvidence.create({
         data: { workspaceId: me.workspaceId, assignmentId: a.id, kind: v.kind, body: v.body, addedById: me.userId },
       });
       await recordEvents(tx, me, [{ assignmentId: a.id, action: EVENT.evidenceAdded, detail: { kind: v.kind } }]);
-      revalidatePath(`/tasks/${a.id}`);
+      revalidatePath(linkFor(a.id));
       return { ok: true };
     });
   } catch (e) {
@@ -177,16 +213,13 @@ export async function addEvidence(input: unknown): Promise<ActionResult> {
 export async function submitAssignment(assignmentId: unknown): Promise<ActionResult> {
   try {
     const me = await actor("assignments.read");
-    const id = z.string().uuid().safeParse(assignmentId);
+    const id = idSchema.safeParse(assignmentId);
     if (!id.success) return fail("Invalid request.");
     return await withScope(me.scope, async (tx): Promise<ActionResult> => {
-      const a = await tx.assignment.findUnique({
-        where: { id: id.data },
-        select: { id: true, status: true, assigneeId: true, recordType: true, recordId: true, requiresEvidence: true, title: true },
-      });
+      const a = await loadAssignment(tx, id.data);
       if (!a) return fail(CANNOT_SEE);
       if (a.assigneeId !== me.userId) return fail("Only the person this is assigned to can submit it.");
-      if (a.status !== "open") return fail("This work has already been submitted.");
+      if (!WORKABLE_STATUSES.includes(a.status)) return fail("This work is not open for submitting. Resume it first if it is on hold.");
 
       const evidenceCount = await tx.assignmentEvidence.count({ where: { assignmentId: a.id } });
       const name = await recordName(tx, a.recordType, a.recordId);
@@ -196,15 +229,79 @@ export async function submitAssignment(assignmentId: unknown): Promise<ActionRes
       const now = new Date();
       await tx.assignment.update({
         where: { id: a.id },
-        data: { status: "verified", submittedAt: now, verifiedAt: now, decisionComment: null },
+        data: { status: "verified", submittedAt: now, verifiedAt: now, decisionComment: null, startedAt: a.startedAt ?? now },
       });
       await recordEvents(tx, me, [
-        { assignmentId: a.id, action: EVENT.submitted, fromStatus: "open", toStatus: null },
-        { assignmentId: a.id, action: EVENT.verified, fromStatus: "open", toStatus: "verified", detail: { checks: ["evidence", "record visible"], evidenceCount } },
+        { assignmentId: a.id, action: EVENT.submitted, fromStatus: a.status, toStatus: null },
+        { assignmentId: a.id, action: EVENT.verified, fromStatus: a.status, toStatus: "verified", detail: { checks: ["evidence", "record visible"], evidenceCount } },
       ]);
       await logActivity(tx, me, [{ recordType: a.recordType, recordId: a.recordId, kind: "task", summary: `Work submitted: ${a.title}` }]);
+      await notifyPeople(tx, me, (await reviewerIds(tx)).map((userId): NoticeInput => ({
+        userId, kind: "submitted", title: `${NOTIFY.submitted}: ${a.title}`, body: `${me.fullName} · ${name ?? "a record"}`, link: linkFor(a.id),
+      })));
       revalidatePath("/tasks");
-      revalidatePath(`/tasks/${a.id}`);
+      revalidatePath(linkFor(a.id));
+      return { ok: true };
+    });
+  } catch (e) {
+    return fail(errorMessage(e));
+  }
+}
+
+/** A hold or resume tells the other side: the assignee tells the reviewers, a reviewer tells the assignee. */
+async function notifyAboutHold(tx: Tx, me: CurrentUser, a: { id: string; title: string; assigneeId: string }, title: string, reason: string | null) {
+  const body = reason ? `${me.fullName}: ${reason}` : me.fullName;
+  if (a.assigneeId === me.userId) {
+    await notifyPeople(tx, me, (await reviewerIds(tx)).map((userId): NoticeInput => ({ userId, kind: "hold", title: `${title}: ${a.title}`, body, link: linkFor(a.id) })));
+  } else {
+    await notifyPeople(tx, me, [{ userId: a.assigneeId, kind: "hold", title: `${title}: ${a.title}`, body, link: linkFor(a.id) }]);
+  }
+}
+
+/** Put on hold: the assignee or a manager, with a reason. The other side is told. */
+export async function holdAssignment(input: unknown): Promise<ActionResult> {
+  try {
+    const me = await actor("assignments.read");
+    const p = holdSchema.safeParse(input);
+    if (!p.success) return fail(p.error.issues[0]?.message ?? "Say why it is on hold.");
+    const { assignmentId, reason } = p.data;
+    return await withScope(me.scope, async (tx): Promise<ActionResult> => {
+      const a = await loadAssignment(tx, assignmentId);
+      if (!a) return fail(CANNOT_SEE);
+      const isAssignee = a.assigneeId === me.userId;
+      if (!isAssignee && !can(me.role, "assignments.manage")) return fail("Only the person this is assigned to or a manager can put it on hold.");
+      if (!canHold(a.status)) return fail("Only work that is to do or in progress can be put on hold.");
+
+      await tx.assignment.update({ where: { id: a.id }, data: { status: "on_hold", holdReason: reason } });
+      await recordEvents(tx, me, [{ assignmentId: a.id, action: EVENT.held, fromStatus: a.status, toStatus: "on_hold", comment: reason }]);
+      await notifyAboutHold(tx, me, a, NOTIFY.held, reason);
+      revalidatePath("/tasks");
+      revalidatePath(linkFor(a.id));
+      return { ok: true };
+    });
+  } catch (e) {
+    return fail(errorMessage(e));
+  }
+}
+
+/** Resume from hold: back to In progress if it had been started, otherwise To do. */
+export async function resumeAssignment(assignmentId: unknown): Promise<ActionResult> {
+  try {
+    const me = await actor("assignments.read");
+    const id = idSchema.safeParse(assignmentId);
+    if (!id.success) return fail("Invalid request.");
+    return await withScope(me.scope, async (tx): Promise<ActionResult> => {
+      const a = await loadAssignment(tx, id.data);
+      if (!a) return fail(CANNOT_SEE);
+      const isAssignee = a.assigneeId === me.userId;
+      if (!isAssignee && !can(me.role, "assignments.manage")) return fail("Only the person this is assigned to or a manager can resume it.");
+      if (a.status !== "on_hold") return fail("This work is not on hold.");
+      const next = resumeStatus(a.startedAt);
+      await tx.assignment.update({ where: { id: a.id }, data: { status: next, holdReason: null } });
+      await recordEvents(tx, me, [{ assignmentId: a.id, action: EVENT.resumed, fromStatus: "on_hold", toStatus: next }]);
+      await notifyAboutHold(tx, me, a, NOTIFY.resumed, null);
+      revalidatePath("/tasks");
+      revalidatePath(linkFor(a.id));
       return { ok: true };
     });
   } catch (e) {
@@ -219,7 +316,7 @@ export async function reviewAssignment(input: unknown): Promise<ActionResult<{ s
     if (!p.success) return fail(p.error.issues[0]?.message ?? "Check the comment.");
     const { assignmentId, decision, comment } = p.data;
     return await withScope(me.scope, async (tx): Promise<ActionResult<{ status: AssignmentStatus }>> => {
-      const a = await tx.assignment.findUnique({ where: { id: assignmentId } });
+      const a = await loadAssignment(tx, assignmentId);
       if (!a) return fail(CANNOT_SEE);
       const next = reviewResult(a.status, decision as ReviewDecision);
       if (!next) return fail("Only work that is awaiting approval can be approved, returned or rejected.");
@@ -230,11 +327,14 @@ export async function reviewAssignment(input: unknown): Promise<ActionResult<{ s
         data: {
           status: next, decidedAt: now, decidedById: me.userId, decisionComment: comment || null,
           // Returned work is to be done again: the submission is cleared, the evidence stays.
-          ...(decision === "return" ? { submittedAt: null, verifiedAt: null } : {}),
+          ...(decision === "return" ? { submittedAt: null, verifiedAt: null, startedAt: a.startedAt ?? now } : {}),
         },
       });
       const action = decision === "approve" ? EVENT.approved : decision === "return" ? EVENT.returned : EVENT.rejected;
       await recordEvents(tx, me, [{ assignmentId: a.id, action, fromStatus: "verified", toStatus: next, comment }]);
+
+      const noticeTitle = decision === "approve" ? NOTIFY.approved : decision === "return" ? NOTIFY.returned : NOTIFY.rejected;
+      await notifyPeople(tx, me, [{ userId: a.assigneeId, kind: decision, title: `${noticeTitle}: ${a.title}`, body: comment || null, link: linkFor(a.id) }]);
 
       if (decision === "approve" && a.recurrence !== "none") {
         // Approved repeating work starts its next round (same person, same record, next deadline). The approver is recorded as the one who started it.
@@ -248,13 +348,16 @@ export async function reviewAssignment(input: unknown): Promise<ActionResult<{ s
           },
         });
         await recordEvents(tx, me, [{ assignmentId: nextId, action: EVENT.repeatStarted, toStatus: "open", detail: { from: a.id } }]);
+        await notifyPeople(tx, me, [{
+          userId: a.assigneeId, kind: "repeat", title: `${NOTIFY.repeat}: ${a.title}`, body: due ? `Due ${due.toISOString().slice(0, 10)}` : null, link: linkFor(nextId),
+        }]);
       }
 
       const verb = decision === "approve" ? "approved" : decision === "return" ? "returned for changes" : "rejected";
       await logActivity(tx, me, [{ recordType: a.recordType, recordId: a.recordId, kind: "task", summary: `Work ${verb}: ${a.title}`, body: comment || null }]);
       await audit(tx, me.scope, { action: `assignment.${decision}`, entityType: "Assignment", entityId: a.id, meta: { status: next } });
       revalidatePath("/tasks");
-      revalidatePath(`/tasks/${a.id}`);
+      revalidatePath(linkFor(a.id));
       return { ok: true, status: next };
     });
   } catch (e) {
@@ -269,9 +372,9 @@ export async function reassignAssignment(input: unknown): Promise<ActionResult> 
     if (!p.success) return fail(p.error.issues[0]?.message ?? "Check the form.");
     const v = p.data;
     return await withScope(me.scope, async (tx): Promise<ActionResult> => {
-      const a = await tx.assignment.findUnique({ where: { id: v.assignmentId } });
+      const a = await loadAssignment(tx, v.assignmentId);
       if (!a) return fail(CANNOT_SEE);
-      if (a.status !== "open") return fail("Only work that is still to do can be reassigned.");
+      if (!canReassign(a.status)) return fail("Only work that is not yet submitted can be reassigned.");
       if (a.assigneeId === v.assigneeId) return fail("It is already assigned to that person.");
       const member = await tx.workspaceMember.findFirst({ where: { userId: v.assigneeId, status: "active" }, select: { fullName: true } });
       if (!member) return fail("That person is not an active member of this workspace.");
@@ -279,12 +382,13 @@ export async function reassignAssignment(input: unknown): Promise<ActionResult> 
       await tx.assignment.update({ where: { id: a.id }, data: { assigneeId: v.assigneeId } });
       await addAssignee(tx, a.recordType, [a.recordId], v.assigneeId);
       await recordEvents(tx, me, [{
-        assignmentId: a.id, action: EVENT.reassigned, fromStatus: "open", toStatus: "open", comment: v.reason,
+        assignmentId: a.id, action: EVENT.reassigned, fromStatus: a.status, toStatus: a.status, comment: v.reason,
         detail: { from: a.assigneeId, to: v.assigneeId },
       }]);
       await logActivity(tx, me, [{ recordType: a.recordType, recordId: a.recordId, kind: "task", summary: `Reassigned to ${member.fullName}: ${a.title}`, body: v.reason }]);
+      await notifyPeople(tx, me, [{ userId: v.assigneeId, kind: "reassigned", title: `${NOTIFY.reassigned}: ${a.title}`, body: v.reason, link: linkFor(a.id) }]);
       revalidatePath("/tasks");
-      revalidatePath(`/tasks/${a.id}`);
+      revalidatePath(linkFor(a.id));
       return { ok: true };
     });
   } catch (e) {
@@ -295,15 +399,15 @@ export async function reassignAssignment(input: unknown): Promise<ActionResult> 
 export async function stopRepeating(assignmentId: unknown): Promise<ActionResult> {
   try {
     const me = await actor("assignments.manage");
-    const id = z.string().uuid().safeParse(assignmentId);
+    const id = idSchema.safeParse(assignmentId);
     if (!id.success) return fail("Invalid request.");
     return await withScope(me.scope, async (tx): Promise<ActionResult> => {
-      const a = await tx.assignment.findUnique({ where: { id: id.data }, select: { id: true, recurrence: true } });
+      const a = await loadAssignment(tx, id.data);
       if (!a) return fail(CANNOT_SEE);
       if (a.recurrence === "none") return fail("This work does not repeat.");
       await tx.assignment.update({ where: { id: a.id }, data: { recurrence: "none" } });
       await recordEvents(tx, me, [{ assignmentId: a.id, action: EVENT.repeatStopped, detail: { was: a.recurrence } }]);
-      revalidatePath(`/tasks/${a.id}`);
+      revalidatePath(linkFor(a.id));
       return { ok: true };
     });
   } catch (e) {

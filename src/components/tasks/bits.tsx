@@ -2,8 +2,8 @@
 import { Badge } from "@/components/ui/badge";
 import { STATUS_LABEL, type AssignmentStatus, type Flags } from "@/lib/assignments";
 
-const STATUS_VARIANT: Record<AssignmentStatus, "secondary" | "warning" | "success" | "destructive"> = {
-  open: "secondary", verified: "warning", approved: "success", rejected: "destructive",
+const STATUS_VARIANT: Record<AssignmentStatus, "secondary" | "default" | "warning" | "success" | "destructive"> = {
+  open: "secondary", in_progress: "default", on_hold: "secondary", verified: "warning", approved: "success", rejected: "destructive",
 };
 
 export function StatusBadge({ status }: { status: AssignmentStatus }) {
@@ -31,10 +31,13 @@ export function formatDue(d: Date | null): string {
 export const EVENT_LABEL: Record<string, string> = {
   assigned: "Assigned",
   reassigned: "Reassigned",
+  started: "Started",
+  held: "Put on hold",
+  resumed: "Resumed",
   evidence_added: "Evidence added",
   submitted: "Submitted",
   verified: "Passed the system checks",
-  approved: "Approved",
+  approved: "Completed (approved)",
   returned: "Returned for changes",
   rejected: "Rejected",
   repeat_started: "Next round started",

@@ -35,14 +35,14 @@ export default async function Page({ searchParams }: { searchParams: Record<stri
     all: {},
     mine: { assigneeId: me.userId },
     review: { status: "verified" },
-    overdue: { status: "open", dueAt: { lt: now } },
-    missing: { status: "open", requiresEvidence: true, evidence: { none: {} }, dueAt: { lte: soon } },
+    overdue: { status: { in: ["open", "in_progress"] }, dueAt: { lt: now } },
+    missing: { status: { in: ["open", "in_progress"] }, requiresEvidence: true, evidence: { none: {} }, dueAt: { lte: soon } },
   };
 
   const data = await withScope(me.scope, async (tx) => {
     // Counts only what the caller can see (row-level security applies to every count).
     const [toDo, review, overdue, missing, total, rows, members] = await Promise.all([
-      tx.assignment.count({ where: { status: "open" } }),
+      tx.assignment.count({ where: { status: { in: ["open", "in_progress"] } } }),
       tx.assignment.count({ where: { status: "verified" } }),
       tx.assignment.count({ where: where.overdue }),
       tx.assignment.count({ where: where.missing }),
@@ -93,7 +93,7 @@ export default async function Page({ searchParams }: { searchParams: Record<stri
 
       {manager && (
         <StatGroup className="mb-6">
-          <Stat label="To do" value={data.counts.toDo.toLocaleString()} href="/tasks?view=all" />
+          <Stat label="Open" value={data.counts.toDo.toLocaleString()} href="/tasks?view=all" />
           <Stat label="Awaiting approval" value={data.counts.review.toLocaleString()} href="/tasks?view=review" tone={data.counts.review ? "warning" : "neutral"} />
           <Stat label="Overdue" value={data.counts.overdue.toLocaleString()} href="/tasks?view=overdue" tone={data.counts.overdue ? "danger" : "neutral"} />
           <Stat label="Missing evidence" value={data.counts.missing.toLocaleString()} href="/tasks?view=missing" tone={data.counts.missing ? "warning" : "neutral"} />
