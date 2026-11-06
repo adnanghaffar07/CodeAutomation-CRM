@@ -16,7 +16,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
 | 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
 | 2 | Accounts and contacts | ✅ | 2026-11-05 | 2026-11-05 | Done and checked. File attachments built 2026-11-06 (on branch `phase-2-attachments`, awaiting your browser check). |
-| 3 | Imports and data quality | ⬜ | | | |
+| 3 | Imports and data quality | ⬜ | 2026-11-06 | | Built and tested. Two checklist items deferred (500k check, background import); see the leftovers table below the Phase 3 checklist. Awaiting your sign-off. |
 | 4 | Assignments and work verification | ⬜ | | | |
 | 5 | Sales pipeline | ⬜ | | | |
 | 6 | Activity tracking and CEO dashboard | ⬜ | | | |
@@ -130,14 +130,17 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [ ] Exit check: 500k-row import completes in the background (not met: the import is capped at 500 rows per file; deferred to a later phase) (not met: imports are capped at 500 rows, measured 1,000 rows in ~43 s locally)
 
 Deferred from Phase 3 (leftovers, not blocking):
-- Background processing for imports over 500 rows, and the 500k-row exit check (needs a host that allows long jobs)
-- Undo for an import (HANDLL has this; not built)
-- Duplicate prompt for similar company names (only exact domain and email matches are checked)
-- Merge moves timeline entries and files by copying them; the old copies stay hidden in the database, and copied files show the merging manager as uploader
-- Records the importer cannot see that match a file row are reported only as "ask a manager"; no review screen for managers yet
-- Sidebar entry for Data quality (reachable from the Imports page and by URL only)
-- Merge tool and import duplicate handling are not covered by the automated isolation test
-- Sample CSV files in the project root are not committed
+
+| Item | Why deferred | Revisit |
+|---|---|---|
+| Background processing for imports over 500 rows, and the 500k-row exit check | Needs a host that allows long jobs; current imports run inside the upload request | Its own phase, when large files are needed |
+| Undo for an import | Not built (HANDLL has it) | Phase 3 follow-up or later |
+| Duplicate prompt for similar company names | Only exact domain and email matches are checked | Later data-quality work |
+| Merge moves timeline and files by copying | The app cannot move timeline entries; copied files show the merging manager as uploader | Later, with a database function |
+| Review screen for records the importer cannot see | Currently "ask a manager" only | Later data-quality work |
+| Sidebar entry for Data quality | Reachable from Imports and by URL only | Next small UI pass |
+| Merge and import duplicates in the automated isolation test | Not written yet | Before go-live (Phase 13) |
+| Sample CSV files in the project root | Test data, not committed | Delete or move when no longer needed |
 
 ### Phase 4: Assignments and work verification
 
