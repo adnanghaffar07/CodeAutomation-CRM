@@ -82,6 +82,7 @@ Each phase ends with: working UI + API + RLS + tests, docs updated, and a demo a
 - Duplicates reveal **only that a duplicate exists**, never another employee's restricted data (security-definer function returns a flag, not the row).
 - Dedupe/merge tool for managers; missing-data report.
 - **Exit:** 500k-row import completes in the background without blocking the UI; counts reconcile.
+- **Status (end of Phase 3 build):** built with a 500-row cap, running inside the upload request; the Job table and worker were removed. Background processing and the 500k exit check are deferred to a later phase (see SHERAZ-ACTION-PLAN.md).
 
 ### Phase 4: Assignments and work verification (feature area 4)
 - Assign single records or batches; task types: research, cleaning, outreach, calling, follow-up.

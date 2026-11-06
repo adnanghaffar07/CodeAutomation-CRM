@@ -213,7 +213,19 @@ async function main() {
       const leaked = res.ok && body.trim() !== "[]";
       check("REST API with the publishable key returns no data", !leaked, `HTTP ${res.status}`);
     }
+
+    // Phase 3: import batches and staged rows are private to the workspace.
+    const batchA = await admin.importBatch.create({ data: { workspaceId: wsA, recordType: "contact", fileName: "a.csv", uploadedById: userA, mapping: {} } });
+    await admin.importRow.create({ data: { workspaceId: wsA, batchId: batchA.id, rowNumber: 1, raw: ["x"] } });
+    const batchSeenByB = await withScope(asB, (tx) => tx.importBatch.findMany({ where: { id: batchA.id }, select: { id: true } }));
+    check("B cannot see the import batch of A", batchSeenByB.length === 0);
+    const rowsSeenByB = await withScope(asB, (tx) => tx.importRow.findMany({ where: { batchId: batchA.id }, select: { id: true } }));
+    check("B cannot see the staged rows of A", rowsSeenByB.length === 0);
+    const batchSeenByA = await withScope(asA, (tx) => tx.importBatch.findMany({ where: { id: batchA.id }, select: { id: true } }));
+    check("A sees its own import batch", batchSeenByA.length === 1);
   } finally {
+    await admin.importRow.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.importBatch.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.attachment.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.activity.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.savedView.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });

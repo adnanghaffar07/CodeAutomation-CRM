@@ -21,7 +21,7 @@ Prisma CLI reads `.env`; Next.js reads `.env.local`. `npm run db:setup` keeps bo
 import { withScope, withSystem } from "@/lib/scope";
 
 await withScope({ userId, workspaceId, role }, (tx) => tx.contact.findMany(...));  // a signed-in user
-await withSystem((tx) => tx.job.findMany(...));                                    // background jobs, sign-in lookups
+await withSystem((tx) => tx.importBatch.findMany(...));                            // background work, sign-in lookups
 ```
 - Never import `prisma` from `@/lib/db` in a page, route or action. Only `scope.ts`, auth code and scripts may.
 - `withScope` opens a transaction and sets, transaction-locally: `app.user_id`, `app.workspace_id`, `app.role`.
@@ -70,8 +70,8 @@ Edit `prisma/schema.prisma`, then run `npm run setup` (push, security rules, iso
 - **Attachments** (`src/app/(app)/attachments/actions.ts`, pure rules in `src/lib/attachments.ts`): files live in the private Supabase Storage bucket `attachments` (created by `npm run db:setup` / `npm run storage:setup`; never public, the browser never reads it directly). Path: `<workspaceId>/<recordType>/<recordId>/<uuid>-<safe name>`. Upload is two server actions because Vercel functions refuse request bodies over about 4.5 MB: `prepareUpload` (the caller must hold the record's write capability and be able to see the record (`withScope`), the extension must be on the allow-list (pdf, png, jpg, gif, webp, doc/docx, xls/xlsx, ppt/pptx, csv, txt), the first bytes must match that type (the browser's MIME label is ignored), and the size is at most 10 MB) returns a one-time signed upload link, the browser sends the file straight to storage, then `finalizeUpload` re-checks the path, the record and the stored bytes, saves the row and deletes the file if anything is refused. Download loads the parent record with `withScope` first, then returns a signed URL valid for 60 seconds. Delete: uploader, manager or CEO/Admin. Upload and delete write a timeline entry. If the database insert fails after storing, the stored file is removed.
 - Sample data (`npm run seed:sample`) is marked `source = "sample-data"` and tagged `sample`; `-- clear` removes exactly those rows.
 
-## 5. Background work (Phase 3+ contract)
-A `Job` table (Postgres queue, `FOR UPDATE SKIP LOCKED`) and a standalone worker (`npm run worker`). Request handlers enqueue; the worker does the work. Jobs carry `workspaceId` and run under `withSystem` + explicit filters.
+## 5. Background work
+None yet. Imports run inside the upload request and are capped at 500 rows per file (see `src/lib/imports.ts`), so no worker is needed. The `Job` table was removed in Phase 3 (see `schema-changes.md`). When background processing is built (large imports, exports, sync), re-add a queue table with `FOR UPDATE SKIP LOCKED`, run jobs under `withSystem` with explicit `workspaceId` filters, and document it here.
 
 ## 6. API conventions
 - Route handlers and server actions validate input with `zod`, call `withScope`, return JSON `{ error, code }` on failure with the right HTTP status.
