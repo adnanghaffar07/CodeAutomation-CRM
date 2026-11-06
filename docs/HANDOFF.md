@@ -2,103 +2,124 @@
 
 Read this first. It is the summary of where the project stands and how to pick up work. The tracker is [SHERAZ-ACTION-PLAN.md](SHERAZ-ACTION-PLAN.md); the requirements are [SPEC.md](SPEC.md); the rules every module follows are [CONTRACTS.md](CONTRACTS.md) and [DESIGN.md](DESIGN.md).
 
-## Where things stand (end of Phase 3)
+## Where things stand (end of Phase 4)
 
 | Phase | Status |
 |---|---|
 | 0 Foundation | Done |
 | 1 Users, roles, permissions, audit | Done and checked in the browser |
 | 2 Accounts and contacts (incl. attachments) | Done and checked |
-| 3 Imports and data quality | Done and signed off by the owner (2026-11-06). Two items deferred, see below |
-| 4 Assignments and work verification | **Next.** Not started |
+| 3 Imports and data quality | Done and signed off by the owner (2026-11-06) |
+| 4 Assignments and work verification | Done (code + tests + PR open). Browser walk-through by owner pending |
+| 5 Sales pipeline | **Next.** Not started |
 
 ## Branches and PRs
 
 - Work flow: feature branch → PR into `dev` → later `dev` into `main`. The owner does the `dev` → `main` step.
-- Phase 3 branch: `phase-3-imports` (pushed; contains `dev` merged in, so it should show no conflicts).
-- PR into `dev`: https://github.com/adnanghaffar07/CodeAutomation-CRM/compare/dev...phase-3-imports
-- Git identity: `sheraz-CA`. Commit trailer used: `Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>`.
-- Do not push unless the owner asks. Pushes go through the Terminal panel tool (`mcp__terminal__run_in_terminal`), because GitHub sign-in is interactive. There is no `gh` CLI.
+- Phase 4 branch: `phase-4-assignments` (pushed). PR open: https://github.com/adnanghaffar07/CodeAutomation-CRM/pull/new/phase-4-assignments targeting `dev`.
+- Phase 5 should start from `dev` after the Phase 4 PR is merged.
+- Git identity: `sheraz-CA`. Commit trailer: `Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>`.
+- Do not push unless the owner asks. There is no `gh` CLI installed; pushes use `git push` via the terminal.
 
-## What Phase 3 delivered
+## What Phase 4 delivered
 
-- **Imports** (`/imports`): CSV and Excel (`.xlsx`, first sheet). Steps: choose file → match columns → **Check for duplicates** → review each matching row (Merge or Skip; Merge all / Skip all) → **Import**. Nothing is saved until the final Import.
-  - Rows are checked as: new, already in the CRM (visible to you), hidden (matches a record you cannot see; no details shown), repeat (same key earlier in the file), invalid.
-  - Merge fills only empty fields of the matched record. Existing values are never overwritten.
-  - Companies named in the file are created as accounts (once per name) and contacts link to them.
-  - Limits: **500 rows and 2 MB per file**. Measured: 1,000 generated rows took about 43 s locally; 500 about 20 s. Imports run inside the upload request (no worker).
-  - Error report download (CSV) for rejected and duplicate rows.
-- **Data quality** (`/data-quality`, reached from the Imports page and by URL; not in the sidebar yet): missing-data counts for records the user can see; **merge two contacts** (by email) or **two companies** (by domain). Managers and CEO/Admin only. Merge fills gaps, combines tags, moves contacts (companies), copies timeline entries and attachments, deletes the removed record, and writes an audit entry.
-- **Tables:** `ImportBatch`, `ImportRow` (RLS: uploader or manager/CEO; rows follow their batch). `Job` was added and then removed (unused). See `schema-changes.md`.
+### Assignment batches (`/tasks/new`, `/tasks/batch/[id]`)
+- A batch is one piece of work: task type (Outreach, Research, Calling, Follow-up, Cleaning), record type (contacts or companies), deadline, priority, recurrence (daily/weekly/monthly/none), optional target count, instructions and completion criteria.
+- Creating a batch picks records and assigns one person per record.
+- Batch detail page shows progress, all assignments in a table, and batch details.
 
-## Deferred from Phase 3 (not blocking; full list in the tracker)
+### Individual assignments (`/tasks/[id]`)
+- Full status lifecycle: **To do → In progress → On hold → Awaiting approval → Completed** (and Rejected / Returned for changes).
+- Assignee clicks **Start work** (slim banner, not a large card), adds evidence (notes or links), then clicks **Submit for approval**.
+- Submission runs system checks (evidence present, record visible) and moves status to Awaiting approval automatically.
+- Manager/CEO can Approve, Return for changes (with comment), or Reject (with confirm dialog).
+- Repeating assignments: approving auto-creates the next round; managers can stop the series.
+- History tab records every event (assigned, started, held, resumed, evidence added, submitted, approved, etc.).
+- Overdue and Missing evidence flags on both list and detail pages.
 
-- Background processing for imports over 500 rows, and the 500k-row exit check. Needs a host that allows long jobs.
-- Undo for an import (HANDLL has it).
-- Duplicate prompt for similar company names (only exact domain and email matches).
-- Merge copies timeline entries and files rather than moving them (the app cannot update `Activity`; copied files show the merging manager as uploader).
-- Review screen for records a manager must check (currently "ask a manager").
-- Sidebar entry for Data quality.
-- Automated isolation test does not cover merge or import duplicates yet.
+### Notifications bell (top-right)
+- In-app notifications with an unread count.
+- Triggers: assigned → assignee; submitted → all managers/CEO; hold/resume → the other party; approve/return/reject → assignee; reassigned → new assignee.
+- Bell polls every 20 s. Assignment pages auto-refresh every 20 s and on tab focus (no manual reload needed).
 
-## Where to look in the code
+### Assignments list (`/tasks`)
+- **Worker view**: three tiles (To do / In progress / Completed), "My work" table with no redundant Assignee column.
+- **Manager/CEO view**: four tiles (To do / In progress / Awaiting approval / Overdue), tabbed table (All / Awaiting approval / Overdue / Missing evidence / Assigned to me).
+- Back button (breadcrumb) on task detail and batch detail pages.
 
-- Pure rules (parsing, mapping, row checks, keys): `src/lib/imports.ts` (tests: `tests/imports.test.ts`)
-- Import logic, bulk writes per page: `src/lib/imports-run.ts`
-- Import actions: `src/app/(app)/imports/actions.ts`, `duplicates-actions.ts` (preview, merge a row)
-- Import UI: `src/components/imports/` (wizard, review step, duplicate list)
-- Merge and data quality: `src/app/(app)/data-quality/` and `src/components/data-quality/`
-- Excel reader: `src/lib/spreadsheet.ts` (loaded only when an `.xlsx` is chosen)
-- Security rules: `scripts/rls.sql` (Phase 3 section near the end). Isolation checks: `scripts/test-isolation.ts`
-- Schema: `prisma/schema.prisma`
+### Database and security
+- Tables: `AssignmentBatch`, `Assignment`, `AssignmentEvidence`, `AssignmentEvent`, `Notification`.
+- Forced RLS on all five tables. 93 isolation checks pass (`npm run db:test`).
+- Schema changes logged in `docs/schema-changes.md`.
+
+## Deferred from Phase 4 (not blocking; full list in the tracker)
+
+| Item | Revisit |
+|---|---|
+| Email or push notifications (in-app bell only today) | Phase 7 or 9 |
+| AI check of evidence against completion criteria | Phase 12 |
+| Evidence as uploaded files (notes/links only today) | Later |
+| Assign directly from a record page | Small follow-up |
+| Keyset paging on the assignment list (capped at 200 today) | Phase 13 |
+| Bulk approve or return | Later |
+| Owner's browser walk-through (exit check) | Owner to do before Phase 5 merge |
+
+## Where to look in the code (Phase 4)
+
+- Pure rules (task types, statuses, flags, next-due-date, zod schemas): `src/lib/assignments.ts` (tests: `tests/assignments.test.ts`)
+- Notification helpers: `src/lib/notify.ts`
+- Server actions (create batch, start, evidence, submit, review, hold, resume, reassign, stop-repeat): `src/app/(app)/tasks/actions.ts`
+- Notification actions (unread count, list, mark read): `src/app/(app)/notifications/actions.ts`
+- Action cards (client): `src/components/tasks/assignment-actions.tsx`
+- Status badge, flag badges, event labels: `src/components/tasks/bits.tsx`
+- Auto-refresh component: `src/components/tasks/auto-refresh.tsx`
+- Notifications bell: `src/components/shell/notifications.tsx`
+- Pages: `src/app/(app)/tasks/page.tsx`, `tasks/[id]/page.tsx`, `tasks/batch/[id]/page.tsx`, `tasks/new/page.tsx`
+- Security rules: `scripts/rls.sql` (Phase 4 and notifications sections). Isolation checks: `scripts/test-isolation.ts`
 
 ## How to run and check
 
 - Dev server: `npm run dev` (http://localhost:3000). Sign in as an active member (the owner tests in the browser; the assistant cannot sign in).
 - Checks, in this order:
   1. `npx tsc --noEmit`
-  2. `npm run lint`
-  3. `npm test`
-  4. `npm run db:test` (about 2 minutes; run it in the background)
+  2. `npx eslint --no-eslintrc -c .eslintrc.json --ext .ts,.tsx src tests scripts` (use this form — the worktree has a conflicting parent `.eslintrc.json`)
+  3. `npx vitest run`
+  4. `npm run db:test` (about 2 minutes; run in background)
   5. `NEXT_DIST_DIR=.next-build npx next build`
 - Environment gotchas:
-  - `npx prisma generate` fails with EPERM while the dev server runs. Stop the dev server first (check for `next dev` processes in the CRM folder), then generate. After a schema change the dev server must be restarted.
+  - `npx prisma generate` fails with EPERM while the dev server runs. Stop the dev server first.
   - `npm run build` also runs `prisma generate`; use the `next build` command above when the dev server is running.
-  - Long-running commands: run in the background with output to a file. Do not use long `sleep`.
-  - Git Bash mangles long multi-line shell heredocs and quotes containing apostrophes; write scripts to files with the Write tool.
+  - Git Bash mangles long multi-line heredocs; write scripts to files with the Write tool.
   - `.env` and `.env.local` hold secrets. Never print or commit them.
-- Test data: the isolation test creates and removes its own workspaces. Imported test records can be removed with the admin connection (`DIRECT_URL`, as in `scripts/test-isolation.ts`); the app role cannot delete `Activity` rows.
 
 ## Rules that matter
 
 - Database access only through `withScope` / `withSystem` (`src/lib/scope.ts`). Never import `prisma` in pages or actions.
-- New tables need forced RLS in `scripts/rls.sql` (statements separated by `--#`) and checks in `scripts/test-isolation.ts`.
+- New tables need forced RLS in `scripts/rls.sql` and checks in `scripts/test-isolation.ts`.
 - Log every schema change in `docs/schema-changes.md`.
 - Keep pure logic in `src/lib/` so vitest can load it. Importing `src/lib/session.ts` breaks vitest.
-- Vercel: request bodies are limited to about 4.5 MB; long work should not run inside a request. Imports stay under the 500-row cap until background processing is built.
-- Keep replies short and plain; the owner is not deeply technical.
+- A "use server" file may only export async functions — never export constants or types from them.
+- Prisma `create` with `select` needs the SELECT policy to pass on the new row; use `createMany` when the writer may not read back.
 
-## Starting Phase 4 (assignments and work verification)
+## Starting Phase 5 (sales pipeline)
 
 Tracker items (see `SHERAZ-ACTION-PLAN.md`):
-- Assign records and batches; task types
-- Deadlines, priorities, targets, recurrence, reminders
-- Required evidence; submitted / verified / approved states
-- Approve, reject, return with comments
-- Assignment history; overdue and missing-evidence flags
-- Exit check: full lifecycle works for each role
+- Opportunities and configurable stages
+- Kanban and table views
+- Stage history, lost reasons, stale alerts, conversion reports
+- Exit check: drag between stages writes history
 
 Starting checklist:
-1. Read this file, `CONTRACTS.md`, `DESIGN.md`, and the Phase 4 section of `SPEC.md`.
-2. `git switch dev` (after the owner has merged the Phase 3 PR), then `git switch -c phase-4-assignments`.
-3. Assignment capabilities already exist in `src/lib/permissions.ts` (`assignments.read`, `assignments.manage`). Reuse them.
-4. Check with the owner before any Phase 4 decision that changes the workflow (for example, who approves).
+1. Owner merges Phase 4 PR (`phase-4-assignments → dev`).
+2. `git switch dev && git pull`, then `git switch -c phase-5-pipeline`.
+3. Read `SPEC.md` Phase 5 section and `CONTRACTS.md` for any pipeline-specific rules.
+4. The pipeline ties to contacts and accounts (Phase 2 tables); use `withScope` for all queries.
+5. Confirm with the owner: how many pipeline stages, and are they configurable by the CEO/Admin or hardcoded?
 
-## Machine and data state (as of the handoff)
+## Machine and data state (as of this handoff, 2026-11-07)
 
-- Branch checked out: `phase-3-imports`, clean except three untracked sample CSVs in the project root (`sample-contacts-20.csv`, `dup-test.csv`, `full-test.csv`). Do not commit them.
-- Last commits on the branch: `22586ed` (this handoff), `120200b` (Phase 3 done), `d2f2bac` (leftovers table), `5bb16ca` (merge of `dev`), `e88f881`, `8b2d90b`.
-- Database: the owner deleted the early test contacts and has since imported and merged test data. The isolation test has passed on the current code. Imported test data is real rows in the owner's workspace; do not delete rows unless the owner asks.
+- Branch checked out in the worktree: `phase-4-assignments`, clean (all committed and pushed).
+- Last 7 commits on the branch: see `git log --oneline phase-4-assignments ^dev`.
+- Database: Phase 4 schema pushed (`AssignmentBatch`, `Assignment`, `AssignmentEvidence`, `AssignmentEvent`, `Notification`). Isolation test last passed at 93 checks.
 - Dev server: may or may not be running on port 3000. Check before running `prisma generate`.
-- The sidebar has no Data quality entry yet.
-- Shared notes folder copy of this file: `side-session-notes\local_4cef1e09-c4b1-4b60-bb45-f55f7c4b9846\HANDOFF.md`.
+- No `gh` CLI on this machine; PRs are opened via the GitHub web UI.
