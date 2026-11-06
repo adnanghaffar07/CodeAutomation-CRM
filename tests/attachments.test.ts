@@ -45,6 +45,10 @@ describe("checkUpload", () => {
     expect(checkUpload("a.pdf", MAX_ATTACHMENT_BYTES + 1, bytes(0x25, 0x50, 0x44, 0x46)).ok).toBe(false);
     expect(checkUpload("a.pdf", 0, bytes(0x25, 0x50, 0x44, 0x46)).ok).toBe(false);
   });
+  it("can check name and size alone before the bytes exist", () => {
+    expect(checkUpload("a.pdf", 100, new Uint8Array(0), { skipContent: true }).ok).toBe(true);
+    expect(checkUpload("a.exe", 100, new Uint8Array(0), { skipContent: true }).ok).toBe(false);
+  });
   it("checks the WEBP and Office signatures", () => {
     const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0, 0, 0, 0]);
     expect(checkUpload("a.webp", 50, webp).ok).toBe(true);

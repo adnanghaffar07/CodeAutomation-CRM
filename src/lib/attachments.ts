@@ -67,12 +67,13 @@ export type FileCheck = { ok: true; mime: string; ext: string } | { ok: false; e
  * Decides whether a file may be stored. The extension must be on the allow-list and the first bytes must
  * match that type; the browser's own MIME label is ignored (it is trivially forged).
  */
-export function checkUpload(fileName: string, size: number, head: Uint8Array): FileCheck {
+export function checkUpload(fileName: string, size: number, head: Uint8Array, opts: { skipContent?: boolean } = {}): FileCheck {
   if (size <= 0) return { ok: false, error: "That file is empty." };
   if (size > MAX_ATTACHMENT_BYTES) return { ok: false, error: `That file is too large (limit ${formatBytes(MAX_ATTACHMENT_BYTES)}).` };
   const ext = extensionOf(fileName);
   const rule = ALLOWED_TYPES[ext];
   if (!rule) return { ok: false, error: "That file type isn't allowed. Use PDF, images, Office documents, CSV or text." };
+  if (opts.skipContent) return { ok: true, mime: rule.mime, ext };
   if (rule.sig === "text") {
     if (head.includes(0)) return { ok: false, error: `That doesn't look like a real .${ext} file.` };
   } else if (!matches(head, rule.sig)) {

@@ -24,42 +24,66 @@ async function recordExists(tx: Tx, t: "contact" | "account", id: string): Promi
   return !!r;
 }
 
-export async function uploadAttachment(formData: FormData): Promise<ActionResult> {
-  let storedPath: string | null = null;
+// Uploads go straight from the browser to storage through a one-time signed upload link, because a hosted
+// serverless function (Vercel) refuses request bodies over about 4.5 MB. Step 1 checks the caller, the record
+// and the file's name and size; step 2 (after the browser has uploaded) checks the stored bytes and saves the row.
+export async function prepareUpload(input: { recordType: string; recordId: string; fileName: string; size: number }): Promise<ActionResult<{ path: string; token: string; mime: string }>> {
   try {
-    const t = typeSchema.safeParse(formData.get("recordType"));
-    const id = idSchema.safeParse(formData.get("recordId"));
-    const file = formData.get("file");
-    if (!t.success || !id.success || !(file instanceof File)) return fail("Invalid request.");
+    const t = typeSchema.safeParse(input.recordType);
+    const id = idSchema.safeParse(input.recordId);
+    if (!t.success || !id.success || typeof input.fileName !== "string" || !Number.isFinite(input.size)) return fail("Invalid request.");
     const me = await actor(capFor(t.data));
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const safeName = sanitizeFileName(file.name);
-    const check = checkUpload(safeName, bytes.byteLength, bytes.subarray(0, 16));
-    if (!check.ok) return fail(check.error);
-
-    const path = storagePathFor(me.workspaceId, t.data, id.data, randomUUID(), safeName);
-    // Prove the caller may see the record before anything is stored.
+    const safeName = sanitizeFileName(input.fileName);
+    const pre = checkUpload(safeName, input.size, new Uint8Array(0), { skipContent: true });
+    if (!pre.ok) return fail(pre.error);
     const visible = await withScope(me.scope, (tx) => recordExists(tx, t.data, id.data));
     if (!visible) return fail("Record not found, or you can't see it.");
+    const path = storagePathFor(me.workspaceId, t.data, id.data, randomUUID(), safeName);
+    const { data, error } = await createAdminSupabase().storage.from(ATTACHMENT_BUCKET).createSignedUploadUrl(path);
+    if (error || !data) return fail("Could not start the upload. Try again.");
+    return { ok: true, path, token: data.token, mime: pre.mime };
+  } catch (e) {
+    return fail(errorMessage(e));
+  }
+}
 
+export async function finalizeUpload(input: { recordType: string; recordId: string; path: string }): Promise<ActionResult> {
+  let remove = false;
+  let path = "";
+  try {
+    const t = typeSchema.safeParse(input.recordType);
+    const id = idSchema.safeParse(input.recordId);
+    if (!t.success || !id.success || typeof input.path !== "string") return fail("Invalid request.");
+    const me = await actor(capFor(t.data));
+    path = input.path;
+    // The path must be one prepareUpload could have issued for this caller and record.
+    const prefix = `${me.workspaceId}/${t.data}/${id.data}/`;
+    if (!path.startsWith(prefix) || path.includes("..") || path.slice(prefix.length).includes("/")) return fail("Invalid request.");
+    remove = true; // from here, any refusal deletes the stored file
+
+    const visible = await withScope(me.scope, (tx) => recordExists(tx, t.data, id.data));
+    if (!visible) return fail("Record not found, or you can't see it.");
     const storage = createAdminSupabase().storage.from(ATTACHMENT_BUCKET);
-    const up = await storage.upload(path, bytes, { contentType: check.mime, upsert: false });
-    if (up.error) return fail("Could not store the file. Try again.");
-    storedPath = path;
+    const dl = await storage.download(path);
+    if (dl.error || !dl.data) return fail("The upload did not arrive. Try again.");
+    const bytes = new Uint8Array(await dl.data.arrayBuffer());
+    const storedName = path.slice(prefix.length + 37); // "<uuid>-" is 37 characters
+    const check = checkUpload(storedName, bytes.byteLength, bytes.subarray(0, 16));
+    if (!check.ok) return fail(check.error);
 
     await withScope(me.scope, async (tx) => {
       await tx.attachment.create({
-        data: { workspaceId: me.workspaceId, recordType: t.data, recordId: id.data, fileName: safeName, mimeType: check.mime, sizeBytes: bytes.byteLength, storagePath: path, uploadedById: me.userId },
+        data: { workspaceId: me.workspaceId, recordType: t.data, recordId: id.data, fileName: storedName, mimeType: check.mime, sizeBytes: bytes.byteLength, storagePath: path, uploadedById: me.userId },
       });
-      await logActivity(tx, me, [{ recordType: t.data, recordId: id.data, kind: "system", summary: `Attached file: ${safeName}` }]);
+      await logActivity(tx, me, [{ recordType: t.data, recordId: id.data, kind: "system", summary: `Attached file: ${storedName}` }]);
     });
-    storedPath = null;
+    remove = false;
     revalidatePath(`/${t.data}s/${id.data}`);
     return { ok: true };
   } catch (e) {
-    if (storedPath) await createAdminSupabase().storage.from(ATTACHMENT_BUCKET).remove([storedPath]).catch(() => undefined);
     return fail(errorMessage(e));
+  } finally {
+    if (remove && path) await createAdminSupabase().storage.from(ATTACHMENT_BUCKET).remove([path]).catch(() => undefined);
   }
 }
 

@@ -18,7 +18,16 @@ async function main() {
   const signed = await s.storage.from(ATTACHMENT_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS, { download: "hello.txt" });
   const res = await fetch(signed.data!.signedUrl);
   console.log("signed URL status:", res.status, "body:", await res.text());
-  await s.storage.from(ATTACHMENT_BUCKET).remove([path]);
+  // Signed upload link, used with the publishable key like the browser does (what Vercel needs for big files).
+  const { createClient } = await import("@supabase/supabase-js");
+  const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!);
+  const path2 = `_check/${Date.now()}-signed.txt`;
+  const tok = await s.storage.from(ATTACHMENT_BUCKET).createSignedUploadUrl(path2);
+  const up2 = await anon.storage.from(ATTACHMENT_BUCKET).uploadToSignedUrl(path2, tok.data!.token, new Blob(["signed"], { type: "text/plain" }));
+  console.log("signed upload error:", up2.error?.message ?? "none");
+  const direct = await anon.storage.from(ATTACHMENT_BUCKET).upload(`_check/${Date.now()}-nope.txt`, new Blob(["x"]));
+  console.log("direct upload with publishable key refused:", !!direct.error);
+  await s.storage.from(ATTACHMENT_BUCKET).remove([path, path2]);
 }
 
 main().catch((e) => { console.error(String(e.message ?? e)); process.exit(1); });

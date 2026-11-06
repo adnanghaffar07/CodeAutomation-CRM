@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { formatDateTime } from "@/components/records/bits";
-import { downloadAttachment, deleteAttachment, uploadAttachment } from "@/app/(app)/attachments/actions";
-import { ACCEPT_ATTR, MAX_ATTACHMENT_BYTES, formatBytes } from "@/lib/attachments";
+import { createBrowserSupabase } from "@/lib/supabase/browser";
+import { downloadAttachment, deleteAttachment, finalizeUpload, prepareUpload } from "@/app/(app)/attachments/actions";
+import { ACCEPT_ATTR, ATTACHMENT_BUCKET, MAX_ATTACHMENT_BYTES, formatBytes } from "@/lib/attachments";
 import type { AttachmentItem } from "@/lib/records/attachments";
 import { cn } from "@/components/ui/cn";
 
@@ -28,11 +29,12 @@ export function Attachments({ recordType, recordId, items, canUpload, userId, ca
     let done = 0;
     for (const file of Array.from(files)) {
       if (file.size > MAX_ATTACHMENT_BYTES) { toast.error(`${file.name}: too large (limit ${formatBytes(MAX_ATTACHMENT_BYTES)}).`); continue; }
-      const fd = new FormData();
-      fd.set("recordType", recordType);
-      fd.set("recordId", recordId);
-      fd.set("file", file);
-      const r = await uploadAttachment(fd);
+      const prep = await prepareUpload({ recordType, recordId, fileName: file.name, size: file.size });
+      if (!prep.ok) { toast.error(`${file.name}: ${prep.error}`); continue; }
+      // Straight to storage with a one-time link (a server action cannot carry big files on Vercel).
+      const up = await createBrowserSupabase().storage.from(ATTACHMENT_BUCKET).uploadToSignedUrl(prep.path, prep.token, new Blob([file], { type: prep.mime }), { contentType: prep.mime });
+      if (up.error) { toast.error(`${file.name}: upload failed.`); continue; }
+      const r = await finalizeUpload({ recordType, recordId, path: prep.path });
       if (r.ok) done++; else toast.error(`${file.name}: ${r.error}`);
     }
     setBusy(false);
