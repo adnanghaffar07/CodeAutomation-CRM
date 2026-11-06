@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { createImportBatch, importErrorReport, importStatus, startImport, stageImportRows } from "@/app/(app)/imports/actions";
@@ -117,7 +118,11 @@ export function ImportWizard() {
           )}
           <div className="flex flex-wrap gap-2">
             {b?.finished && (b.rejected > 0 || b.duplicates > 0) && <Button variant="outline" onClick={downloadErrors}>Download error report</Button>}
-            {b?.finished && <Button onClick={() => { setBatchId(null); setParsed(null); setStatus(null); }}>Import another file</Button>}
+            {b?.finished && (
+              <Button onClick={() => { setBatchId(null); setParsed(null); setStatus(null); }}>
+                <ArrowLeft aria-hidden /> Back
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -207,7 +212,10 @@ export function ImportWizard() {
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setParsed(null)}>Choose another file</Button>
-              <Button onClick={start} disabled={!hasKey || !!busy}>Start import</Button>
+              <Button onClick={start} disabled={!hasKey || !!busy} aria-busy={!!busy}>
+                {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
+                {busy ? "Importing…" : "Start import"}
+              </Button>
             </div>
           </CardContent>
         </Card>
