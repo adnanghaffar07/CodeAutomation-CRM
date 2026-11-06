@@ -16,7 +16,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
 | 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
 | 2 | Accounts and contacts | ✅ | 2026-11-05 | 2026-11-05 | Done and checked. File attachments built 2026-11-06 (on branch `phase-2-attachments`, awaiting your browser check). |
-| 3 | Imports and data quality | ⬜ | 2026-11-06 | | Built and tested. Two checklist items deferred (500k check, background import); see the leftovers table below the Phase 3 checklist. Awaiting your sign-off. |
+| 3 | Imports and data quality | ✅ | 2026-11-06 | 2026-11-06 | Done and checked by you. Two checklist items deferred (500k check, background import); see the leftovers table below the Phase 3 checklist. |
 | 4 | Assignments and work verification | ⬜ | | | |
 | 5 | Sales pipeline | ⬜ | | | |
 | 6 | Activity tracking and CEO dashboard | ⬜ | | | |
