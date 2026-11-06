@@ -16,7 +16,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
 | 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
 | 2 | Accounts and contacts | ✅ | 2026-11-05 | 2026-11-05 | Done and checked. File attachments built 2026-11-06 (on branch `phase-2-attachments`, awaiting your browser check). |
-| 3 | Imports and data quality | ⬜ | | | |
+| 3 | Imports and data quality | ⬜ | 2026-11-06 | | Built and tested. Two checklist items deferred (500k check, background import); see the leftovers table below the Phase 3 checklist. Awaiting your sign-off. |
 | 4 | Assignments and work verification | ⬜ | | | |
 | 5 | Sales pipeline | ⬜ | | | |
 | 6 | Activity tracking and CEO dashboard | ⬜ | | | |
@@ -116,18 +116,31 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | Attachment extras | No virus scan, no preview, no rename, no per-file notes; storage files of deleted records are not cleaned up yet | Phase 3 or later |
 | Editing "assigned users" on a record | Owner reassignment works; multi-person assignment belongs with Assignments | Phase 4 |
 | Searchable account picker | The account dropdown lists the first 300 companies by name | When an account list nears 300 |
-| Import, duplicate detection and merge | Phase 3 | Phase 3 |
+| Import, duplicate detection and merge | Built in Phase 3 (CSV and Excel, up to 500 rows per file, runs inside the upload request) | Background processing for large files: a later phase |
 | Deep paging and name-sort speed at millions of rows | A 2M-row test showed 3 slow spots (very deep pages, Sales-user name sort with filters, Sales-user counts); irrelevant at current size | Phase 13 load test |
 | Showing the timeline's emails, calls and meetings | Filled by integrations | Phases 9 and 10 |
 
 ### Phase 3: Imports and data quality
 
-- [ ] Upload, column mapping, preview, validation
-- [ ] Background import via staging table
-- [ ] Duplicate detection (in file and existing) without leaking restricted data
-- [ ] Controlled updates; batch results and error report
-- [ ] Merge tool and missing-data report
-- [ ] Exit check: 500k-row import completes in the background
+- [x] Upload, column mapping, preview, validation
+- [ ] Background import via staging table (not met: rows are staged, then imported inline in the same request; capped at 500 rows per file; background processing deferred)
+- [x] Duplicate detection (in file and existing) without leaking restricted data
+- [x] Controlled updates; batch results and error report
+- [x] Merge tool and missing-data report
+- [ ] Exit check: 500k-row import completes in the background (not met: the import is capped at 500 rows per file; deferred to a later phase) (not met: imports are capped at 500 rows, measured 1,000 rows in ~43 s locally)
+
+Deferred from Phase 3 (leftovers, not blocking):
+
+| Item | Why deferred | Revisit |
+|---|---|---|
+| Background processing for imports over 500 rows, and the 500k-row exit check | Needs a host that allows long jobs; current imports run inside the upload request | Its own phase, when large files are needed |
+| Undo for an import | Not built (HANDLL has it) | Phase 3 follow-up or later |
+| Duplicate prompt for similar company names | Only exact domain and email matches are checked | Later data-quality work |
+| Merge moves timeline and files by copying | The app cannot move timeline entries; copied files show the merging manager as uploader | Later, with a database function |
+| Review screen for records the importer cannot see | Currently "ask a manager" only | Later data-quality work |
+| Sidebar entry for Data quality | Reachable from Imports and by URL only | Next small UI pass |
+| Merge and import duplicates in the automated isolation test | Not written yet | Before go-live (Phase 13) |
+| Sample CSV files in the project root | Test data, not committed | Delete or move when no longer needed |
 
 ### Phase 4: Assignments and work verification
 
