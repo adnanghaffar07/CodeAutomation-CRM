@@ -98,7 +98,9 @@ async function applyPage(
 
   // 3. Decide each row.
   const out: Out[] = [];
-  const toContacts: { id: string; v: Values; accountId: string | null }[] = [];
+  const toContacts: { id: string; v: Values; company: string | null }[] = [];
+  // Companies named in the file that do not exist yet: each becomes one account (lower-case name -> new account).
+  const newCompanies = new Map<string, { id: string; name: string }>();
   const toAccounts: { id: string; v: Values }[] = [];
   for (let i = 0; i < checks.length; i++) {
     const c = checks[i];
@@ -126,8 +128,10 @@ async function applyPage(
 
     const id = randomUUID();
     if (kind === "contact") {
-      const company = typeof c.values.companyName === "string" ? c.values.companyName.trim().toLowerCase() : "";
-      toContacts.push({ id, v: c.values, accountId: company ? companyIds.get(company) ?? null : null });
+      const name = typeof c.values.companyName === "string" ? c.values.companyName.trim() : "";
+      const lower = name.toLowerCase();
+      if (lower && !companyIds.has(lower) && !newCompanies.has(lower)) newCompanies.set(lower, { id: randomUUID(), name });
+      toContacts.push({ id, v: c.values, company: lower || null });
     } else {
       toAccounts.push({ id, v: c.values });
     }
@@ -135,9 +139,26 @@ async function applyPage(
   }
 
   // 4. Bulk inserts, each with its timeline entry.
+  if (newCompanies.size > 0) {
+    const accs = [...newCompanies.values()];
+    await tx.account.createMany({
+      data: accs.map((a) => ({
+        id: a.id, workspaceId: scope.workspaceId, createdById: scope.userId, ownerId: scope.userId, assigneeIds: [], tags: [],
+        importBatchId: batchId, name: a.name, source: "import", searchText: searchBlob([a.name]),
+      })),
+    });
+    await tx.activity.createMany({
+      data: accs.map((a) => ({
+        workspaceId: scope.workspaceId, recordType: "account", recordId: a.id, kind: "system", source: "system",
+        summary: "Account created from a contact import", actorId: scope.userId, actorEmail: scope.email,
+      })),
+    });
+    for (const [lower, a] of newCompanies) companyIds.set(lower, a.id);
+  }
   if (toContacts.length > 0) {
     await tx.contact.createMany({
-      data: toContacts.map(({ id, v, accountId }) => {
+      data: toContacts.map(({ id, v, company: companyKey }) => {
+        const accountId = companyKey ? companyIds.get(companyKey) ?? null : null;
         const fullName = String(v.fullName);
         const company = typeof v.companyName === "string" ? v.companyName.trim() : "";
         return {
