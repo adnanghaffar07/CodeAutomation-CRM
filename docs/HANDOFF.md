@@ -93,3 +93,12 @@ Starting checklist:
 2. `git switch dev` (after the owner has merged the Phase 3 PR), then `git switch -c phase-4-assignments`.
 3. Assignment capabilities already exist in `src/lib/permissions.ts` (`assignments.read`, `assignments.manage`). Reuse them.
 4. Check with the owner before any Phase 4 decision that changes the workflow (for example, who approves).
+
+## Machine and data state (as of the handoff)
+
+- Branch checked out: `phase-3-imports`, clean except three untracked sample CSVs in the project root (`sample-contacts-20.csv`, `dup-test.csv`, `full-test.csv`). Do not commit them.
+- Last commits on the branch: `22586ed` (this handoff), `120200b` (Phase 3 done), `d2f2bac` (leftovers table), `5bb16ca` (merge of `dev`), `e88f881`, `8b2d90b`.
+- Database: the owner deleted the early test contacts and has since imported and merged test data. The isolation test has passed on the current code. Imported test data is real rows in the owner's workspace; do not delete rows unless the owner asks.
+- Dev server: may or may not be running on port 3000. Check before running `prisma generate`.
+- The sidebar has no Data quality entry yet.
+- Shared notes folder copy of this file: `side-session-notes\local_4cef1e09-c4b1-4b60-bb45-f55f7c4b9846\HANDOFF.md`.
