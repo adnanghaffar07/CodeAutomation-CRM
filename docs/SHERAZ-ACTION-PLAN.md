@@ -127,6 +127,16 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Merge tool and missing-data report
 - [ ] Exit check: 500k-row import completes in the background (not met: the import is capped at 500 rows per file; deferred to a later phase) (not met: imports are capped at 500 rows, measured 1,000 rows in ~43 s locally)
 
+Deferred from Phase 3 (leftovers, not blocking):
+- Background processing for imports over 500 rows, and the 500k-row exit check (needs a host that allows long jobs)
+- Undo for an import (HANDLL has this; not built)
+- Duplicate prompt for similar company names (only exact domain and email matches are checked)
+- Merge moves timeline entries and files by copying them; the old copies stay hidden in the database, and copied files show the merging manager as uploader
+- Records the importer cannot see that match a file row are reported only as "ask a manager"; no review screen for managers yet
+- Sidebar entry for Data quality (reachable from the Imports page and by URL only)
+- Merge tool and import duplicate handling are not covered by the automated isolation test
+- Sample CSV files in the project root are not committed
+
 ### Phase 4: Assignments and work verification
 
 - [ ] Assign records and batches; task types
