@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipboardCheck } from "lucide-react";
+import { ChevronLeft, ClipboardCheck } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -60,7 +60,19 @@ export default async function Page({ params }: { params: { id: string } }) {
         title={a.title}
         subtitle={`${TASK_LABEL[a.taskType]} · ${recordName ?? "Record you cannot see"}`}
         icon={<ClipboardCheck />}
-        breadcrumb={a.batchId ? <Link href={`/tasks/batch/${a.batchId}`} className="text-footnote text-brand-text hover:underline">Back to the batch</Link> : undefined}
+        breadcrumb={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <Link href="/tasks" className="inline-flex items-center gap-0.5 hover:text-foreground transition-colors">
+              <ChevronLeft className="size-3.5" />Assignments
+            </Link>
+            {a.batchId && (
+              <>
+                <span className="text-muted-foreground/50">/</span>
+                <Link href={`/tasks/batch/${a.batchId}`} className="hover:text-foreground transition-colors">Batch</Link>
+              </>
+            )}
+          </span>
+        }
         actions={<span className="inline-flex flex-wrap gap-2"><StatusBadge status={a.status} /><FlagBadges flags={flags} /></span>}
       />
 

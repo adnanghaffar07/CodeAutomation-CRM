@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ClipboardCheck } from "lucide-react";
+import { ChevronLeft, ClipboardCheck } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -62,6 +62,11 @@ export default async function Page({ params }: { params: { id: string } }) {
         title={batch.title}
         subtitle={`${TASK_LABEL[batch.taskType]} · ${batch.recordType === "contact" ? "Contacts" : "Companies"} · ${PRIORITY_LABEL[batch.priority]} priority · Due ${formatDue(batch.dueAt)}`}
         icon={<ClipboardCheck />}
+        breadcrumb={
+          <Link href="/tasks" className="inline-flex items-center gap-0.5 text-footnote text-muted-foreground hover:text-foreground transition-colors">
+            <ChevronLeft className="size-3.5" />Assignments
+          </Link>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
