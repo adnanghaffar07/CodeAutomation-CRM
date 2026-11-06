@@ -77,10 +77,11 @@ export async function stageImportRows(input: z.input<typeof stageSchema>): Promi
 }
 
 /** Ends staging and applies the rows now, in this request. Small files only (see MAX_IMPORT_ROWS). */
-export async function startImport(batchId: string): Promise<ActionResult> {
+export async function startImport(batchId: string, decisions: Record<string, "merge" | "skip"> = {}): Promise<ActionResult> {
   try {
     const me = await actor("imports.use");
     if (!z.string().uuid().safeParse(batchId).success) return fail("Invalid request.");
+    if (!z.record(z.string().regex(/^\d+$/), z.enum(["merge", "skip"])).safeParse(decisions).success) return fail("Invalid choices.");
     await withScope(me.scope, async (tx) => {
       const b = await tx.importBatch.findUnique({ where: { id: batchId }, select: { status: true, uploadedById: true, _count: { select: { rows: true } } } });
       if (!b || b.uploadedById !== me.userId) throw new Error("That import isn't open for changes.");
@@ -88,7 +89,7 @@ export async function startImport(batchId: string): Promise<ActionResult> {
       if (b._count.rows === 0) throw new Error("No rows were received.");
       await tx.importBatch.update({ where: { id: batchId }, data: { status: "queued" } });
     });
-    await runImportBatch(batchId);
+    await runImportBatch(batchId, decisions);
     revalidatePath("/imports");
     return { ok: true };
   } catch (e) {

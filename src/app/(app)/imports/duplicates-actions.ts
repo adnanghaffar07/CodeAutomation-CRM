@@ -6,7 +6,7 @@ import { z } from "zod";
 import { withScope } from "@/lib/scope";
 import { actor, errorMessage, fail, type ActionResult } from "@/lib/records/server";
 import { checkRow, mappingFromIndex, type ImportKind } from "@/lib/imports";
-import { fillBlanks } from "@/lib/imports-run";
+import { fillBlanks, keysThatExist } from "@/lib/imports-run";
 
 export type DuplicateRow = {
   id: string;
@@ -88,6 +88,70 @@ export async function mergeImportRow(rowId: string): Promise<ActionResult<{ chan
     if ("error" in result) return fail(result.error);
     revalidatePath("/imports");
     return { ok: true, changed: result.changed };
+  } catch (e) {
+    return fail(errorMessage(e));
+  }
+}
+
+export type PreviewRow = {
+  rowNumber: number;
+  summary: string;
+  status: "new" | "match" | "hidden" | "repeat" | "invalid";
+  recordId: string | null;
+  recordName: string | null;
+  message: string | null;
+};
+
+/**
+ * Checks every staged row before anything is written (like HANDLL's dedupe preview): new, matches an existing record
+ * you can see, matches a record you can't see (no details), repeats an earlier row, or invalid.
+ */
+export async function previewImport(batchId: string): Promise<ActionResult<{ kind: string; rows: PreviewRow[] }>> {
+  try {
+    const me = await actor("imports.use");
+    if (!z.string().uuid().safeParse(batchId).success) return fail("Invalid request.");
+    const result = await withScope(me.scope, async (tx) => {
+      const b = await tx.importBatch.findUnique({ where: { id: batchId }, select: { recordType: true, mapping: true } });
+      if (!b) return null;
+      const kind = b.recordType as ImportKind;
+      const meta = b.mapping as { headers: string[]; mapping: Record<string, number> };
+      const mapping = mappingFromIndex(meta.mapping, meta.headers);
+      const staged = await tx.importRow.findMany({ where: { batchId }, orderBy: { rowNumber: "asc" }, take: 500, select: { rowNumber: true, raw: true } });
+      const checks = staged.map((r) => checkRow(kind, meta.headers, r.raw as string[], mapping));
+      const keys = checks.map((c) => (c.ok ? c.key : null));
+      const wanted = [...new Set(keys.filter((k): k is string => !!k))];
+
+      // Visible matches (row-level security decides what you can see).
+      const visible = new Map<string, { id: string; name: string }>();
+      if (wanted.length > 0 && kind === "contact") {
+        for (const r of await tx.contact.findMany({ where: { email: { in: wanted.map((k) => k.slice(6)) } }, select: { id: true, email: true, fullName: true } })) {
+          if (r.email) visible.set(`email:${r.email}`, { id: r.id, name: r.fullName });
+        }
+      } else if (wanted.length > 0) {
+        for (const r of await tx.account.findMany({ where: { domain: { in: wanted.map((k) => k.slice(7)) } }, select: { id: true, domain: true, name: true } })) {
+          if (r.domain) visible.set(`domain:${r.domain}`, { id: r.id, name: r.name });
+        }
+      }
+      const hidden = await keysThatExist(kind, wanted);
+
+      const seen = new Set<string>();
+      const rows: PreviewRow[] = staged.map((s, i): PreviewRow => {
+        const c = checks[i];
+        const key = keys[i];
+        const summary = ((s.raw as string[]) ?? []).filter(Boolean).slice(0, 4).join(" · ");
+        const base = { rowNumber: s.rowNumber, summary, recordId: null, recordName: null };
+        if (!c.ok) return { ...base, status: "invalid", message: c.message };
+        if (key && seen.has(key)) return { ...base, status: "repeat", message: "Repeats a row earlier in this file." };
+        if (key) seen.add(key);
+        const hit = key ? visible.get(key) : undefined;
+        if (hit) return { ...base, status: "match", recordId: hit.id, recordName: hit.name, message: null };
+        if (key && hidden.has(key)) return { ...base, status: "hidden", message: "Matches a record you can't see. Ask a manager to review it." };
+        return { ...base, status: "new", message: null };
+      });
+      return { kind, rows };
+    });
+    if (!result) return fail("Import not found, or you can't see it.");
+    return { ok: true, kind: result.kind, rows: result.rows };
   } catch (e) {
     return fail(errorMessage(e));
   }

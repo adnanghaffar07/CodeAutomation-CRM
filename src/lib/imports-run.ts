@@ -24,7 +24,8 @@ async function uploaderScope(workspaceId: string, userId: string): Promise<Who |
   return m ? { userId, workspaceId, role: m.role, email: m.email } : null;
 }
 
-export async function runImportBatch(batchId: string): Promise<void> {
+/** `decisions` is keyed by file row number: "merge" fills the matched record's empty fields; anything else skips it. */
+export async function runImportBatch(batchId: string, decisions: Record<string, "merge" | "skip"> = {}): Promise<void> {
   const batch = await withSystem((tx) => tx.importBatch.findUnique({ where: { id: batchId } }));
   if (!batch) throw new Error("Import not found");
   const scope = await uploaderScope(batch.workspaceId, batch.uploadedById);
@@ -52,7 +53,7 @@ export async function runImportBatch(batchId: string): Promise<void> {
     const hiddenKeys = await keysThatExist(kind, keys.filter((k): k is string => !!k));
 
     await withScope(scope, async (tx) => {
-      const outcomes = await applyPage(tx, kind, scope, duplicateMode, page.map((p) => p.id), checks, keys, hiddenKeys, seen, batch.id);
+      const outcomes = await applyPage(tx, kind, scope, duplicateMode, page.map((p) => p.id), page.map((p) => p.rowNumber), decisions, checks, keys, hiddenKeys, seen, batch.id);
       await tx.importBatch.update({
         where: { id: batchId },
         data: {
@@ -71,7 +72,8 @@ export async function runImportBatch(batchId: string): Promise<void> {
 
 /** Decides every row of one page, then writes the new records with bulk inserts. */
 async function applyPage(
-  tx: Tx, kind: ImportKind, scope: Who, duplicateMode: string, pageIds: string[], checks: RowResult[], keys: (string | null)[],
+  tx: Tx, kind: ImportKind, scope: Who, duplicateMode: string, pageIds: string[], pageNums: number[],
+  decisions: Record<string, "merge" | "skip">, checks: RowResult[], keys: (string | null)[],
   hiddenKeys: Set<string>, seen: Set<string>, batchId: string,
 ): Promise<Out[]> {
   // 1. Records the uploader can see that match a key (one query).
@@ -111,7 +113,9 @@ async function applyPage(
 
     const existingId = key ? visible.get(key) : undefined;
     if (existingId) {
-      if (duplicateMode === "fill_blanks") {
+      const decided = decisions[String(pageNums[i])];
+      const merge = decided ? decided === "merge" : duplicateMode === "fill_blanks";
+      if (merge) {
         const changed = await fillBlanks(tx, kind, existingId, c.values, scope);
         out.push({ id: pageIds[i], outcome: changed ? "updated" : "duplicate", message: changed ? `Filled empty fields: ${changed.join(", ")}` : DUPLICATE_MESSAGE, recordId: existingId });
       } else {
@@ -208,7 +212,7 @@ async function markRows(tx: Tx, ids: string[], outcomes: Out[]): Promise<void> {
 }
 
 /** Which of these keys already exist anywhere in the workspace. Returns only keys, never record details (SPEC R-8.9). */
-async function keysThatExist(kind: ImportKind, keys: string[]): Promise<Set<string>> {
+export async function keysThatExist(kind: ImportKind, keys: string[]): Promise<Set<string>> {
   const out = new Set<string>();
   if (keys.length === 0) return out;
   if (kind === "contact") {

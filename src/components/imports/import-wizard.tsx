@@ -7,6 +7,8 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { createImportBatch, importErrorReport, importStatus, startImport, stageImportRows } from "@/app/(app)/imports/actions";
+import { previewImport, type PreviewRow } from "@/app/(app)/imports/duplicates-actions";
+import { ReviewStep, type Decision } from "@/components/imports/review-step";
 import { readFirstSheet } from "@/lib/spreadsheet";
 import { DuplicateReview } from "@/components/imports/duplicate-review";
 import { checkRow, IMPORT_FIELDS, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, mappingFromIndex, parseCsv, suggestMapping, type ImportKind } from "@/lib/imports";
@@ -24,6 +26,7 @@ export function ImportWizard() {
   const [busy, setBusy] = React.useState<string | null>(null);
   const [batchId, setBatchId] = React.useState<string | null>(null);
   const [status, setStatus] = React.useState<Awaited<ReturnType<typeof importStatus>> | null>(null);
+  const [review, setReview] = React.useState<{ batchId: string; kind: string; rows: PreviewRow[] } | null>(null);
 
   async function pickFile(file: File) {
     if (file.size > MAX_IMPORT_BYTES) return toast.error("That file is too large. Split it into smaller files (limit 50 MB).");
@@ -54,7 +57,8 @@ export function ImportWizard() {
 
   const hasKey = kind === "contact" ? ["email", "fullName", "firstName"].some((f) => f in mapping) : "name" in mapping;
 
-  async function start() {
+  // Step 1 → 2: send the rows, then check every row against the CRM. Nothing is saved as records yet.
+  async function checkDuplicates() {
     if (!parsed) return;
     setBusy("Creating import…");
     const created = await createImportBatch({
@@ -67,11 +71,22 @@ export function ImportWizard() {
       const r = await stageImportRows({ batchId: id, startRow: start + 1, rows: parsed.rows.slice(start, start + CHUNK) });
       if (!r.ok) { setBusy(null); return toast.error(r.error); }
     }
+    setBusy("Checking for duplicates…");
+    const pv = await previewImport(id);
+    setBusy(null);
+    if (!pv.ok) return toast.error(pv.error);
+    setReview({ batchId: id, kind: pv.kind, rows: pv.rows });
+  }
+
+  // Step 2 → done: import with the choices made on the review screen.
+  async function runImport(decisions: Record<string, Decision>) {
+    if (!review) return;
     setBusy("Adding records…");
-    const q = await startImport(id);
+    const q = await startImport(review.batchId, decisions);
     setBusy(null);
     if (!q.ok) return toast.error(q.error);
-    setBatchId(id);
+    setBatchId(review.batchId);
+    setReview(null);
     toast.success("Import finished.");
     router.refresh();
   }
@@ -99,6 +114,15 @@ export function ImportWizard() {
     const a = document.createElement("a");
     a.href = url; a.download = r.fileName; a.click();
     URL.revokeObjectURL(url);
+  }
+
+  if (review && !batchId) {
+    return (
+      <ReviewStep
+        kind={review.kind} rows={review.rows} busy={!!busy}
+        onRun={runImport} onBack={() => setReview(null)}
+      />
+    );
   }
 
   if (batchId) {
@@ -217,9 +241,9 @@ export function ImportWizard() {
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setParsed(null)}>Choose another file</Button>
-              <Button onClick={start} disabled={!hasKey || !!busy} aria-busy={!!busy}>
+              <Button onClick={checkDuplicates} disabled={!hasKey || !!busy} aria-busy={!!busy}>
                 {busy ? <Loader2 className="animate-spin" aria-hidden /> : null}
-                {busy ? "Importing…" : "Start import"}
+                {busy ? "Checking…" : "Check for duplicates"}
               </Button>
             </div>
           </CardContent>
