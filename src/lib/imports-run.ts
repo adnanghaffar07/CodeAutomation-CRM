@@ -141,7 +141,7 @@ async function applyPage(
         const fullName = String(v.fullName);
         const company = typeof v.companyName === "string" ? v.companyName.trim() : "";
         return {
-          id, workspaceId: scope.workspaceId, createdById: scope.userId, ownerId: scope.userId, assigneeIds: [], importBatchId: batchId,
+          id, workspaceId: scope.workspaceId, createdById: scope.userId, ownerId: scope.userId, assigneeIds: [], tags: [], importBatchId: batchId,
           firstName: String(v.firstName), lastName: String(v.lastName ?? ""), fullName, email: normEmail(v.email as string | null),
           phone: (v.phone as string) ?? null, jobTitle: (v.jobTitle as string) ?? null, linkedinUrl: (v.linkedinUrl as string) ?? null,
           city: (v.city as string) ?? null, region: (v.region as string) ?? null, country: (v.country as string) ?? null,
@@ -160,7 +160,7 @@ async function applyPage(
   if (toAccounts.length > 0) {
     await tx.account.createMany({
       data: toAccounts.map(({ id, v }) => ({
-        id, workspaceId: scope.workspaceId, createdById: scope.userId, ownerId: scope.userId, assigneeIds: [], importBatchId: batchId,
+        id, workspaceId: scope.workspaceId, createdById: scope.userId, ownerId: scope.userId, assigneeIds: [], tags: [], importBatchId: batchId,
         name: String(v.name), domain: (v.domain as string) ?? null, website: (v.website as string) ?? null, industry: (v.industry as string) ?? null,
         sizeBand: (v.sizeBand as string) ?? null, city: (v.city as string) ?? null, region: (v.region as string) ?? null, country: (v.country as string) ?? null,
         phone: (v.phone as string) ?? null, linkedinUrl: (v.linkedinUrl as string) ?? null, source: (v.source as string) ?? "import",
