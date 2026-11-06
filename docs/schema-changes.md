@@ -2,6 +2,9 @@
 
 Log every change to `prisma/schema.prisma` or `scripts/rls.sql` here (newest first): date, what, why. After any change run `npx prisma db push`, `npm run db:setup`, `npm run db:test`.
 
+## 2026-11-06: attachments (Phase 2)
+- No table or `rls.sql` changes (the `Attachment` table and its rules already existed). Added the private Storage bucket `attachments` via `scripts/setup-storage.ts` (run by `db:setup`). New isolation checks cover attachment list, insert and delete rules.
+
 ## 2026-11-05: Phase 2 (accounts and contacts)
 - Enabled the `pg_trgm` extension. Added enums `LeadStatus`, `EmailStatus`, `RecordType`, `ActivityKind`, `ActivitySource`, `CustomFieldType`.
 - Added `Account`, `Contact` (both with `viewerIds` kept by a trigger, a `searchText` trigram index, GIN indexes on `viewerIds` and `tags`, and keyset-friendly indexes), `Activity`, `SavedView`, `CustomFieldDef`, `Attachment`.

@@ -13,6 +13,8 @@ import { can } from "@/lib/permissions";
 import { withScope } from "@/lib/scope";
 import { loadRecordContext } from "@/lib/records/context";
 import { loadTimeline } from "@/lib/records/timeline";
+import { Attachments } from "@/components/records/attachments";
+import { loadAttachments } from "@/lib/records/attachments";
 
 export const metadata: Metadata = { title: "Account" };
 export const dynamic = "force-dynamic";
@@ -27,17 +29,18 @@ export default async function AccountPage({ params }: { params: { id: string } }
   const data = await withScope(me.scope, async (tx) => {
     const account = await tx.account.findUnique({ where: { id: params.id } });
     if (!account) return null;
+    const attachments = await loadAttachments(tx, "account", account.id);
     const [ctx, timeline, contacts, contactCount] = await Promise.all([
       loadRecordContext(tx, me, "account"),
       loadTimeline(tx, "account", account.id),
       tx.contact.findMany({ where: { accountId: account.id }, select: { id: true, fullName: true, jobTitle: true, email: true, emailStatus: true, qualification: true }, orderBy: { fullName: "asc" }, take: 25 }),
       tx.contact.count({ where: { accountId: account.id } }),
     ]);
-    return { account, ctx, timeline, contacts, contactCount };
+    return { account, ctx, timeline, contacts, contactCount, attachments };
   });
   if (!data) notFound();
 
-  const { account: a, ctx, timeline, contacts, contactCount } = data;
+  const { account: a, ctx, timeline, contacts, contactCount, attachments } = data;
   return (
     <>
       <PageHeader
@@ -83,10 +86,16 @@ export default async function AccountPage({ params }: { params: { id: string } }
             </CardContent>
           </Card>
         </div>
-        <Card className="self-start">
-          <CardHeader><CardTitle>Timeline</CardTitle></CardHeader>
-          <CardContent><Timeline recordType="account" recordId={a.id} items={timeline} /></CardContent>
-        </Card>
+        <div className="space-y-6 self-start">
+          <Card>
+            <CardHeader><CardTitle>Attachments ({attachments.length})</CardTitle></CardHeader>
+            <CardContent><Attachments recordType="account" recordId={a.id} items={attachments} canUpload={can(me.role, "accounts.write")} userId={me.userId} canDeleteAny={can(me.role, "assignments.manage")} /></CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Timeline</CardTitle></CardHeader>
+            <CardContent><Timeline recordType="account" recordId={a.id} items={timeline} /></CardContent>
+          </Card>
+        </div>
       </div>
     </>
   );

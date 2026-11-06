@@ -169,6 +169,27 @@ async function main() {
     try { await withScope(asS1, (tx) => tx.activity.updateMany({ data: { body: "edited" } })); } catch { actUpd = true; }
     check("timeline entries cannot be edited", actUpd);
 
+    // ---- attachments follow their record ---------------------------------------------------------
+    const att = (uploader: string, extra: object = {}) => ({ workspaceId: wsA, recordType: "contact" as const, recordId: c1.id, fileName: "f.pdf", mimeType: "application/pdf", sizeBytes: 10, storagePath: `${wsA}/contact/${c1.id}/${randomUUID()}-f.pdf`, uploadedById: uploader, ...extra });
+    const att1 = await withScope(asS1, (tx) => tx.attachment.create({ data: att(s1), select: { id: true } }));
+    check("attachments: owner lists them", (await withScope(asS1, (tx) => tx.attachment.findMany({ where: { recordId: c1.id } }))).length === 1);
+    check("attachments: user who cannot see the record cannot list them", (await withScope(asS2, (tx) => tx.attachment.findMany({ where: { recordId: c1.id } }))).length === 0);
+    check("attachments: manager lists them", (await withScope(asMgr, (tx) => tx.attachment.findMany({ where: { recordId: c1.id } }))).length === 1);
+    check("attachments: other workspace sees none", (await withScope(asB, (tx) => tx.attachment.findMany())).length === 0);
+    let attBlocked = false;
+    try { await withScope(asS2, (tx) => tx.attachment.create({ data: att(s2) })); } catch { attBlocked = true; }
+    check("attachments: cannot attach to a record you cannot see", attBlocked);
+    let attSpoof = false;
+    try { await withScope(asS1, (tx) => tx.attachment.create({ data: att(s2) })); } catch { attSpoof = true; }
+    check("attachments: cannot upload in someone else's name", attSpoof);
+    await withScope(asMgr, (tx) => tx.contact.update({ where: { id: c1.id }, data: { assigneeIds: [s2] } }));
+    check("attachments: an assigned user can list but not delete another's file", (await withScope(asS2, (tx) => tx.attachment.findMany({ where: { recordId: c1.id } }))).length === 1
+      && (await withScope(asS2, (tx) => tx.attachment.deleteMany({ where: { id: att1.id } }))).count === 0);
+    await withScope(asMgr, (tx) => tx.contact.update({ where: { id: c1.id }, data: { assigneeIds: [] } }));
+    check("attachments: uploader can delete their own", (await withScope(asS1, (tx) => tx.attachment.deleteMany({ where: { id: att1.id } }))).count === 1);
+    const att2 = await withScope(asS1, (tx) => tx.attachment.create({ data: att(s1), select: { id: true } }));
+    check("attachments: manager can delete anyone's", (await withScope(asMgr, (tx) => tx.attachment.deleteMany({ where: { id: att2.id } }))).count === 1);
+
     // ---- saved views and custom fields ---------------------------------------------------------
     await withScope(asS1, (tx) => tx.savedView.createMany({ data: [
       { workspaceId: wsA, ownerId: s1, entity: "contact", name: `private-${tag}`, shared: false },
@@ -193,6 +214,7 @@ async function main() {
       check("REST API with the publishable key returns no data", !leaked, `HTTP ${res.status}`);
     }
   } finally {
+    await admin.attachment.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.activity.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.savedView.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.customFieldDef.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
