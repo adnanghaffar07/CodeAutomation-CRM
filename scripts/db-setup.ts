@@ -9,6 +9,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { loadEnv, setEnvVars } from "./_env";
+import { ensureAttachmentsBucket } from "./setup-storage";
 
 loadEnv();
 
@@ -47,6 +48,8 @@ async function main() {
       create: { name: "CodeAutomation", slug: "codeautomation" },
     });
     console.log("Workspace 'CodeAutomation' is in place.");
+
+    await ensureAttachmentsBucket();
   } finally {
     await admin.$disconnect();
   }
