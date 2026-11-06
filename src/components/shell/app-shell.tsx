@@ -32,7 +32,7 @@ export function AppShell({ user, navIds, children }: { user: ShellUser; navIds: 
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
   const [notifOpen, setNotifOpen] = React.useState(false);
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
-  const [unread] = useUnreadCount();
+  const [unread, refreshUnread] = useUnreadCount();
   const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
 
   const soon = React.useCallback((what: string) => toast.message(`${what} arrives in a later phase.`), []);
@@ -89,7 +89,7 @@ export function AppShell({ user, navIds, children }: { user: ShellUser; navIds: 
           onNewTask={() => { setPaletteOpen(false); soon("Assignments"); }}
           onShortcuts={() => { setPaletteOpen(false); setShortcutsOpen(true); }}
         />
-        <NotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} />
+        <NotificationsDrawer open={notifOpen} onOpenChange={setNotifOpen} onChanged={refreshUnread} />
         <ShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} navIds={navIds} />
         <ConfirmDialogRoot />
         <MobileTabBar user={user} navIds={navIds} unread={unread} alertsOpen={notifOpen} onOpenNotifications={() => setNotifOpen(true)} />
