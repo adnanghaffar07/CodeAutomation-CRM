@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Upload } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -20,6 +21,9 @@ export default async function Page() {
   return (
     <>
       <PageHeader title="Imports" subtitle="Bring CSV data in, safely." icon={<Upload />} />
+      <p className="mb-4 text-footnote text-muted-foreground">
+        Duplicates and gaps in your records? See <Link href="/data-quality" className="text-brand-text underline-offset-4 hover:underline">Data quality</Link>.
+      </p>
       <ImportWizard />
       <section className="mt-8 space-y-3">
         <h2 className="text-headline">Recent imports</h2>

@@ -7,6 +7,7 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { createImportBatch, importErrorReport, importStatus, startImport, stageImportRows } from "@/app/(app)/imports/actions";
+import { readFirstSheet } from "@/lib/spreadsheet";
 import { checkRow, IMPORT_FIELDS, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, mappingFromIndex, parseCsv, suggestMapping, type ImportKind } from "@/lib/imports";
 
 const CHUNK = 500;
@@ -25,10 +26,10 @@ export function ImportWizard() {
 
   async function pickFile(file: File) {
     if (file.size > MAX_IMPORT_BYTES) return toast.error("That file is too large. Split it into smaller files (limit 50 MB).");
-    if (!/\.csv$/i.test(file.name)) return toast.error("Upload a .csv file. Excel files: save them as CSV first.");
+    const isExcel = /\.xlsx$/i.test(file.name);
+    if (!isExcel && !/\.csv$/i.test(file.name)) return toast.error("Upload a .csv or .xlsx file.");
     setBusy("Reading file…");
-    const text = await file.text();
-    const p = parseCsv(text);
+    const p = isExcel ? await readFirstSheet(file) : parseCsv(await file.text());
     setBusy(null);
     if (p.headers.length === 0 || p.rows.length === 0) return toast.error("That file has no data rows.");
     if (p.rows.length > MAX_IMPORT_ROWS) return toast.error(`That file has more than ${MAX_IMPORT_ROWS.toLocaleString()} rows. Split it.`);
@@ -134,7 +135,7 @@ export function ImportWizard() {
       <Card>
         <CardHeader>
           <CardTitle>1. Choose a file</CardTitle>
-          <CardDescription>CSV only. The first row must be column names. Up to {MAX_IMPORT_ROWS.toLocaleString()} rows and 2 MB per file.</CardDescription>
+          <CardDescription>CSV or Excel (.xlsx, first sheet). The first row must be column names. Up to {MAX_IMPORT_ROWS.toLocaleString()} rows and 2 MB per file.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="What are you importing?">
@@ -145,7 +146,7 @@ export function ImportWizard() {
             ))}
           </div>
           <input
-            type="file" accept=".csv,text/csv" disabled={!!busy}
+            type="file" accept=".csv,.xlsx,text/csv" disabled={!!busy}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) void pickFile(f); e.target.value = ""; }}
             className="block w-full text-body file:mr-3 file:rounded-control file:border-0 file:bg-brand-tint file:px-3 file:py-2 file:text-brand-text"
           />

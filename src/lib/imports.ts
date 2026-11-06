@@ -5,8 +5,8 @@ import { fullName, normDomain, normEmail } from "@/lib/records/text";
 
 export type ImportKind = "contact" | "account";
 
-// The import runs inside one request (Vercel time limit), so files stay small.
-export const MAX_IMPORT_ROWS = 1_000;
+// The import runs inside one request (Vercel time limit). Measured: 1,000 rows took about 43 s; 500 about 20 s.
+export const MAX_IMPORT_ROWS = 500;
 export const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 
 /** Fields a column can map to, with the label shown in the mapping screen. */

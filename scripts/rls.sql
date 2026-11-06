@@ -300,17 +300,6 @@ create policy importrow_all on "ImportRow" for all to crm_app
   using (app.bypass() or ("workspaceId" = app.workspace_id() and exists (select 1 from "ImportBatch" b where b.id = "batchId")))
   with check (app.bypass() or ("workspaceId" = app.workspace_id() and exists (select 1 from "ImportBatch" b where b.id = "batchId")))
 --#
--- Jobs: only the system (worker, or the request that enqueues) reads them; the app role sees its own workspace's jobs.
-alter table "Job" enable row level security
+grant select, insert, update, delete on "ImportBatch", "ImportRow" to crm_app
 --#
-alter table "Job" force row level security
---#
-drop policy if exists job_all on "Job"
---#
-create policy job_all on "Job" for all to crm_app
-  using (app.bypass() or "workspaceId" = app.workspace_id())
-  with check (app.bypass() or "workspaceId" = app.workspace_id())
---#
-grant select, insert, update, delete on "ImportBatch", "ImportRow", "Job" to crm_app
---#
-revoke all on "ImportBatch", "ImportRow", "Job" from anon, authenticated
+revoke all on "ImportBatch", "ImportRow" from anon, authenticated

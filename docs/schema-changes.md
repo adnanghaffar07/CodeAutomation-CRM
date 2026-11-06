@@ -27,3 +27,8 @@ Log every change to `prisma/schema.prisma` or `scripts/rls.sql` here (newest fir
 - Added `ImportBatch` (one uploaded CSV: record type, uploader, column mapping, duplicate mode, status and counts), `ImportRow` (staged rows with their outcome) and `Job` (Postgres work queue, claimed with `FOR UPDATE SKIP LOCKED`).
 - `scripts/rls.sql`: batches visible to the uploader and to managers/CEO only, and created only as yourself; staged rows follow their batch; jobs are limited to the workspace (the worker runs as the system).
 - Why: SPEC R-8.1 to R-8.7 and CONTRACTS §5 (background work). Additive only.
+
+## Phase 3: remove unused Job table
+- Dropped the `Job` table (never used: imports run inside the request now). It was empty.
+- `scripts/rls.sql` no longer mentions it; the isolation test no longer checks it.
+- Why: keeps the schema to what the code uses; the table can be re-added if background work is ever needed (CONTRACTS section 5).
