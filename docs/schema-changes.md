@@ -1,5 +1,10 @@
 # Schema changes
 
+## 2026-11-07: Phase 4 complete — no further schema changes
+- No new tables or columns after the notifications / in-progress-status entry below.
+- All five Phase 4 tables (`AssignmentBatch`, `Assignment`, `AssignmentEvidence`, `AssignmentEvent`, `Notification`) are live. RLS and isolation tests pass (93 checks).
+- Branch `phase-4-assignments` pushed; PR open → `dev`.
+
 Log every change to `prisma/schema.prisma` or `scripts/rls.sql` here (newest first): date, what, why. After any change run `npx prisma db push`, `npm run db:setup`, `npm run db:test`.
 
 ## 2026-11-06: notifications and in-progress / on-hold statuses (Phase 4 follow-up)
