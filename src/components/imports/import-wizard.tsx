@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { createImportBatch, importErrorReport, importStatus, startImport, stageImportRows } from "@/app/(app)/imports/actions";
 import { readFirstSheet } from "@/lib/spreadsheet";
+import { DuplicateReview } from "@/components/imports/duplicate-review";
 import { checkRow, IMPORT_FIELDS, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, mappingFromIndex, parseCsv, suggestMapping, type ImportKind } from "@/lib/imports";
 
 const CHUNK = 500;
@@ -116,6 +117,9 @@ export function ImportWizard() {
               <Stat label="Duplicates" value={b.duplicates} />
               <Stat label="Rejected" value={b.rejected} />
             </dl>
+          )}
+          {b?.finished && b.duplicates > 0 && (
+            <DuplicateReview batchId={batchId} onChanged={async () => setStatus(await importStatus(batchId))} />
           )}
           <div className="flex flex-wrap gap-2">
             {b?.finished && (b.rejected > 0 || b.duplicates > 0) && <Button variant="outline" onClick={downloadErrors}>Download error report</Button>}

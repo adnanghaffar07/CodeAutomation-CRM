@@ -11,9 +11,9 @@ import type { Prisma } from "@prisma/client";
 
 const PAGE = 500;
 
-type Tx = Prisma.TransactionClient;
-type Values = Record<string, unknown>;
-type Who = Scope & { email: string };
+export type Tx = Prisma.TransactionClient;
+export type Values = Record<string, unknown>;
+export type Who = Scope & { email: string };
 type Out = { id: string; outcome: string; message: string | null; recordId: string | null };
 
 /** Who applies the import: the uploader, with their role as of now. Null if they are no longer an active member. */
@@ -221,7 +221,8 @@ async function keysThatExist(kind: ImportKind, keys: string[]): Promise<Set<stri
   return out;
 }
 
-async function fillBlanks(tx: Tx, kind: ImportKind, id: string, v: Values, scope: Who): Promise<string[] | null> {
+/** Fills only the empty fields of an existing record from the file's values. Returns the fields changed, or null. */
+export async function fillBlanks(tx: Tx, kind: ImportKind, id: string, v: Values, scope: Who): Promise<string[] | null> {
   const fields = kind === "contact"
     ? ["phone", "jobTitle", "linkedinUrl", "city", "region", "country", "source", "serviceInterest"]
     : ["website", "industry", "sizeBand", "city", "region", "country", "phone", "linkedinUrl", "source"];
