@@ -52,13 +52,33 @@ export default async function Page({ params }: { params: { id: string } }) {
   const recordHref = a.recordType === "contact" ? `/contacts/${a.recordId}` : `/accounts/${a.recordId}`;
   // The last comment from a manager (return or reject, or an approval note). Work awaiting approval has none of its own.
   const decision = a.status !== "verified" ? a.decisionComment : null;
+  // When the manager is viewing someone else's task and nothing needs reviewing or resuming, show details first.
+  const showActionsFirst = isAssignee || a.status === "verified" || a.status === "on_hold";
+  const assigneeName = names.get(a.assigneeId) ?? "Former member";
+
+  const actionsProps = {
+    assignmentId: a.id,
+    status: a.status,
+    isAssignee,
+    isManager,
+    requiresEvidence: a.requiresEvidence,
+    evidenceCount: a.evidence.length,
+    repeating: a.recurrence !== "none",
+    currentAssigneeId: a.assigneeId,
+    members: members.filter((m) => m.status === "active").map((m) => ({ userId: m.userId, fullName: m.fullName })),
+    assigneeName,
+  };
 
   return (
     <>
       <AutoRefresh />
       <PageHeader
         title={a.title}
-        subtitle={`${TASK_LABEL[a.taskType]} · ${recordName ?? "Record you cannot see"}`}
+        subtitle={
+          isManager && !isAssignee
+            ? `${TASK_LABEL[a.taskType]} · ${recordName ?? "Record you cannot see"} · Assigned to ${assigneeName}`
+            : `${TASK_LABEL[a.taskType]} · ${recordName ?? "Record you cannot see"}`
+        }
         icon={<ClipboardCheck />}
         breadcrumb={
           <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -77,17 +97,8 @@ export default async function Page({ params }: { params: { id: string } }) {
       />
 
       <div className="space-y-6">
-        <AssignmentActions
-          assignmentId={a.id}
-          status={a.status}
-          isAssignee={isAssignee}
-          isManager={isManager}
-          requiresEvidence={a.requiresEvidence}
-          evidenceCount={a.evidence.length}
-          repeating={a.recurrence !== "none"}
-          currentAssigneeId={a.assigneeId}
-          members={members.filter((m) => m.status === "active").map((m) => ({ userId: m.userId, fullName: m.fullName }))}
-        />
+        {/* Primary actions (worker start/work, review): shown above the details grid */}
+        {showActionsFirst && <AssignmentActions {...actionsProps} />}
 
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
@@ -134,6 +145,9 @@ export default async function Page({ params }: { params: { id: string } }) {
                 )}
               </CardContent>
             </Card>
+
+            {/* Management tools: shown below the content when the manager is not the assignee */}
+            {!showActionsFirst && <AssignmentActions {...actionsProps} managerOnly />}
           </div>
 
           <Card className="h-fit">

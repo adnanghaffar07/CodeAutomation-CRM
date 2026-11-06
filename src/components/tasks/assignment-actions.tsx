@@ -27,6 +27,9 @@ export type ActionsProps = {
   repeating: boolean;
   currentAssigneeId: string;
   members: Member[];
+  assigneeName?: string;
+  /** When true, only management actions are present — render them in a compact card at the bottom. */
+  managerOnly?: boolean;
 };
 
 export function AssignmentActions(p: ActionsProps) {
@@ -98,6 +101,73 @@ export function AssignmentActions(p: ActionsProps) {
   const anything = canStartNow || canWork || canHoldNow || canResumeNow || canReview || canReassignNow || canStopRepeat;
   if (!anything) return null;
 
+  // ── Manager-only view: single compact card below the details ──────────────
+  if (p.managerOnly) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-footnote font-medium text-muted-foreground uppercase tracking-wide">Manager tools</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-0 divide-y divide-border pt-0">
+          {canHoldNow && (
+            <form onSubmit={holdNow} className="py-4">
+              <p className="mb-3 text-footnote font-medium">Put on hold</p>
+              <div className="flex gap-3">
+                <Textarea
+                  rows={1}
+                  className="flex-1"
+                  value={holdReason}
+                  onChange={(e) => setHoldReason(e.target.value)}
+                  maxLength={500}
+                  required
+                  placeholder="Reason (shown to the assignee)"
+                />
+                <Button size="sm" type="submit" variant="outline" disabled={busy || holdReason.trim().length < 3} className="shrink-0 self-start">
+                  Put on hold
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {canReassignNow && (
+            <form onSubmit={reassignNow} className="py-4">
+              <p className="mb-3 text-footnote font-medium">Reassign</p>
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                <label className="flex flex-col gap-1 text-footnote">
+                  <span className="text-muted-foreground">New person</span>
+                  <select className={field} value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)} required>
+                    <option value="">Choose a person</option>
+                    {others.map((m) => <option key={m.userId} value={m.userId}>{m.fullName}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-footnote">
+                  <span className="text-muted-foreground">Reason</span>
+                  <Textarea rows={1} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required />
+                </label>
+                <Button size="sm" type="submit" variant="outline" disabled={busy || !newAssignee || reason.trim().length < 3} className="self-end">
+                  Reassign
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {canStopRepeat && (
+            <div className="flex items-center justify-between gap-4 py-4">
+              <div>
+                <p className="text-footnote font-medium">Repeating work</p>
+                <p className="text-caption text-muted-foreground">Approving starts the next round automatically.</p>
+              </div>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => stopRepeating(p.assignmentId), "Repeats stopped.")} className="shrink-0">
+                Stop repeating
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // ── Normal view: banners + primary cards + secondary grid ─────────────────
   return (
     <div className="space-y-4">
       {/* Slim inline banners for quick one-click actions */}
@@ -184,7 +254,7 @@ export function AssignmentActions(p: ActionsProps) {
         </div>
       )}
 
-      {/* Secondary / management actions */}
+      {/* Secondary / management actions alongside primary work */}
       {(canHoldNow || canReassignNow || canStopRepeat) && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {canHoldNow && (
