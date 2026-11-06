@@ -13,6 +13,7 @@
     "setup": "prisma db push --skip-generate && tsx scripts/db-setup.ts && tsx scripts/test-isolation.ts",
     "db:push": "prisma db push",
     "db:setup": "tsx scripts/db-setup.ts",
+    "storage:setup": "tsx scripts/setup-storage.ts",
     "db:test": "tsx scripts/test-isolation.ts",
     "admin:link": "tsx scripts/admin-link.ts",
     "seed:sample": "tsx scripts/seed-sample.ts"

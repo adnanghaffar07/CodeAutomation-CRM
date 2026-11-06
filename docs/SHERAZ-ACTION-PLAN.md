@@ -15,7 +15,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 |---|---|---|---|---|---|
 | 0 | Foundation and setup | ✅ | 2026-11-05 | 2026-11-05 | Done. Phase 1 questions: login method, admin email. |
 | 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
-| 2 | Accounts and contacts | ✅ | 2026-11-05 | 2026-11-05 | Done and checked. File attachments are the one open item (see Phase 2 leftovers). |
+| 2 | Accounts and contacts | ✅ | 2026-11-05 | 2026-11-05 | Done and checked. File attachments built 2026-11-06 (on branch `phase-2-attachments`, awaiting your browser check). |
 | 3 | Imports and data quality | ⬜ | | | |
 | 4 | Assignments and work verification | ⬜ | | | |
 | 5 | Sales pipeline | ⬜ | | | |
@@ -106,12 +106,14 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 - [x] Tests: 47 database checks, 36 unit tests, lint, build
 - [x] Checked in the browser by you (7-step checklist, 2026-11-05): all worked
 - [x] Committed and pushed (branch `phase-2-contacts-accounts`)
+- [x] File attachments on contacts and accounts: private bucket `attachments`, upload (10 MB, PDF/images/Office/CSV/text, content checked), list, signed 60-second download, delete (uploader, manager, CEO/Admin), timeline entries; 11 database checks and 14 unit tests
+- [ ] Attachments checked in the browser by you (upload, see, download, delete on a contact and an account)
 
 **Deferred from Phase 2 (leftovers, not blocking)**
 
 | Item | Why deferred | Revisit |
 |---|---|---|
-| File attachments on records | Needs a private Supabase Storage bucket plus signed downloads; the table and rules exist | Next, as part of Phase 2b or with Imports (Phase 3) |
+| Attachment extras | No virus scan, no preview, no rename, no per-file notes; storage files of deleted records are not cleaned up yet | Phase 3 or later |
 | Editing "assigned users" on a record | Owner reassignment works; multi-person assignment belongs with Assignments | Phase 4 |
 | Searchable account picker | The account dropdown lists the first 300 companies by name | When an account list nears 300 |
 | Import, duplicate detection and merge | Built in Phase 3 (CSV and Excel, up to 500 rows per file, runs inside the upload request) | Background processing for large files: a later phase |
