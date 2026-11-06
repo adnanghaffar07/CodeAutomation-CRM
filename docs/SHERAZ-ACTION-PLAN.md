@@ -149,9 +149,9 @@ Deferred from Phase 3 (leftovers, not blocking):
 - [x] Required evidence; submitted / verified / approved states (notes and links; submitting runs the system checks and moves the work to awaiting approval)
 - [x] Approve, reject, return with comments
 - [x] Assignment history; overdue and missing-evidence flags
-- [ ] Exit check: full lifecycle works for each role (not met yet: `npm run db:test` and a walk-through in the browser by the owner are still to do; see leftovers)
+- [ ] Exit check: full lifecycle works for each role (not met yet: the owner's walk-through in the browser is still to do; see leftovers)
 
-Ticked items are built and pass type check, lint, unit tests and the production build. The database checks and the browser walk-through have not run yet.
+Ticked items are built and pass type check, lint, unit tests, the production build and the isolation checks (`npm run db:test`). The browser walk-through by the owner is still to do.
 
 Deferred from Phase 4 (leftovers, not blocking):
 
@@ -167,7 +167,7 @@ Deferred from Phase 4 (leftovers, not blocking):
 | Repeats only start when the previous round is approved | No calendar scheduler (CONTRACTS §5: background work) | Background work phase |
 | Bulk approve or return | Not built | Later |
 | Assignment counts on the dashboards | Dashboards arrive in Phase 6 | Phase 6 |
-| Browser walk-through and `npm run db:test` for Phase 4 | Owner to run; the database schema push was blocked in the build session | Before the Phase 4 exit check |
+| Browser walk-through for Phase 4 | Owner to run through the checklist; `npm run db:test` passed | Before the Phase 4 exit check |
 
 ### Phase 5: Sales pipeline
 
