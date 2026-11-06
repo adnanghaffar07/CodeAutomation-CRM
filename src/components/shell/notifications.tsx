@@ -1,5 +1,5 @@
 "use client";
-// Notification bell + drawer. The count is read from the server when the shell loads, every minute, and when the page
+// Notification bell + drawer. The count is read from the server when the shell loads, every 20 seconds, and when the page
 // comes back into view. Opening the drawer lists the latest notifications; clicking one marks it read and opens it.
 
 import * as React from "react";
@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/components/ui/cn";
 import { getUnreadCount, listNotifications, markNotificationsRead, type NoticeRow } from "@/app/(app)/notifications/actions";
 
-const POLL_MS = 60_000;
+const POLL_MS = 20_000;
 
 /** Shell-wide unread count, plus a function to reload it. */
 export function useUnreadCount(): [number, () => void] {

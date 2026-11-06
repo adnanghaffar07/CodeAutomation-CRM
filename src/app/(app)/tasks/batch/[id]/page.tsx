@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlagBadges, StatusBadge, formatDue } from "@/components/tasks/bits";
+import { AutoRefresh } from "@/components/tasks/auto-refresh";
 import { requireUser } from "@/lib/session";
 import { withScope } from "@/lib/scope";
 import { flagsFor, PRIORITY_LABEL, RECURRENCE_LABEL, TASK_LABEL } from "@/lib/assignments";
@@ -56,6 +57,7 @@ export default async function Page({ params }: { params: { id: string } }) {
 
   return (
     <>
+      <AutoRefresh />
       <PageHeader
         title={batch.title}
         subtitle={`${TASK_LABEL[batch.taskType]} · ${batch.recordType === "contact" ? "Contacts" : "Companies"} · ${PRIORITY_LABEL[batch.priority]} priority · Due ${formatDue(batch.dueAt)}`}

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { FlagBadges, StatusBadge, formatDue } from "@/components/tasks/bits";
+import { AutoRefresh } from "@/components/tasks/auto-refresh";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { withScope } from "@/lib/scope";
@@ -82,6 +83,7 @@ export default async function Page({ searchParams }: { searchParams: Record<stri
 
   return (
     <>
+      <AutoRefresh />
       <PageHeader
         title="Assignments"
         subtitle={manager ? "Work given to the team, with evidence and approval." : "Work given to you, with what is due and what needs evidence."}

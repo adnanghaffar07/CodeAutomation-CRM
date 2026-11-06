@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AssignmentActions } from "@/components/tasks/assignment-actions";
+import { AutoRefresh } from "@/components/tasks/auto-refresh";
 import { EVENT_LABEL, FlagBadges, StatusBadge, formatDue, formatWhen } from "@/components/tasks/bits";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
@@ -54,6 +55,7 @@ export default async function Page({ params }: { params: { id: string } }) {
 
   return (
     <>
+      <AutoRefresh />
       <PageHeader
         title={a.title}
         subtitle={`${TASK_LABEL[a.taskType]} · ${recordName ?? "Record you cannot see"}`}
