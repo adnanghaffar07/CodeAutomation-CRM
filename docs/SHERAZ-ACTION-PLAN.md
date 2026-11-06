@@ -5,7 +5,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 **Project location:** `C:\Users\DELL\Documents\codeautomation\CRM` (from 2026-11-06). Git identity for this repo: `sheraz-CA` / `sheraz@codeautomation.dev`. The older `CodeAutomation-CRM` folder is no longer used.
 
 **Status key:** ⬜ not started · 🟦 in progress · ✅ done · ⛔ blocked
-**Last updated:** 2026-11-05 (Phases 0 to 2 done)
+**Last updated:** 2026-11-07 (Phase 4 done; PR open into dev)
 
 ---
 
@@ -17,7 +17,7 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 | 1 | Users, roles, permissions, audit | ✅ | 2026-11-05 | 2026-11-05 | Done and checked in the browser. Leftovers listed below the Phase 1 checklist. |
 | 2 | Accounts and contacts | ✅ | 2026-11-05 | 2026-11-05 | Done and checked. File attachments built 2026-11-06 (on branch `phase-2-attachments`, awaiting your browser check). |
 | 3 | Imports and data quality | ✅ | 2026-11-06 | 2026-11-06 | Done and checked by you. Two checklist items deferred (500k check, background import); see the leftovers table below the Phase 3 checklist. |
-| 4 | Assignments and work verification | ⬜ | | | |
+| 4 | Assignments and work verification | ✅ | 2026-11-07 | 2026-11-07 | Done. PR open: phase-4-assignments → dev. Browser walk-through by owner still to do. |
 | 5 | Sales pipeline | ⬜ | | | |
 | 6 | Activity tracking and CEO dashboard | ⬜ | | | |
 | 7 | Export approval workflow | ⬜ | | | |
@@ -144,12 +144,39 @@ Deferred from Phase 3 (leftovers, not blocking):
 
 ### Phase 4: Assignments and work verification
 
-- [ ] Assign records and batches; task types
-- [ ] Deadlines, priorities, targets, recurrence, reminders
-- [ ] Required evidence; submitted / verified / approved states
-- [ ] Approve, reject, return with comments
-- [ ] Assignment history; overdue and missing-evidence flags
-- [ ] Exit check: full lifecycle works for each role
+- [x] Assign records and batches; task types (New assignment picks contacts or companies for one person; research, cleaning, outreach, calling, follow-up)
+- [x] Deadlines, priorities, targets, recurrence and reminders (deadlines, priority, target progress, repeats on approval; reminders are the in-app Due soon and Missing evidence flags only, see leftovers)
+- [x] Required evidence; submitted / verified / approved states (notes and links; submitting runs the system checks and moves the work to awaiting approval)
+- [x] Approve, reject, return with comments
+- [x] Assignment history; overdue and missing-evidence flags
+- [ ] Exit check: full lifecycle works for each role — code, tests, build and RLS all pass; browser walk-through by the owner still to do (use the checklist at the end of this section)
+
+All code passes: `npx tsc --noEmit`, `npm run lint`, `npm test` (84 tests), `npm run db:test` (93 checks), production build. Committed on branch `phase-4-assignments`; PR open targeting `dev`. Browser walk-through by the owner is the last step.
+
+**Browser walk-through checklist (owner)**
+1. Sign in as CEO → Assignments → New assignment → fill in task type, record, due date, assign to Test Sales Person → save.
+2. Check the bell (top-right) — "New work assigned" appears.
+3. Sign in as Test Sales Person → check the bell → open the task → click **Start work** (status becomes In progress).
+4. Click **Add evidence** → add a note → click **Submit for approval** (status becomes Awaiting approval).
+5. Sign back in as CEO → bell shows "Work submitted for approval" within ~20 s → open the task → click **Approve**.
+6. Status becomes Completed; if the task repeats, the next round is created automatically.
+7. Optionally: test **Put on hold** (with a reason), **Resume**, **Return for changes**, **Reject** (with a comment).
+
+Deferred from Phase 4 (leftovers, not blocking):
+
+| Item | Why deferred | Revisit |
+|---|---|---|
+| Email or push notifications | The bell is built (in-app only); email and push need the outgoing mail setup | Phase 7 (notifications) or Phase 9 |
+| AI check of work against completion criteria (SPEC R-10.5) | The check today is evidence present and record visible; criteria are shown, not checked | Phase 12 |
+| Evidence as uploaded files | Evidence is a note or a link; record attachments are not linked to assignments yet | Later, with attachment links |
+| Assign from a record page | Assigning is on the New assignment page only | Small follow-up |
+| Keyset paging on the assignment list | The list shows the first 200 (SPEC R-11.1 asks for keyset paging) | Phase 13 load test |
+| Old assignee keeps access to the record after reassigning | Access is removed only by editing the record's assignees by hand | Later data-quality work |
+| Deadlines are the end of the day in UTC | No per-person time zone yet | Later, with user settings |
+| Repeats only start when the previous round is approved | No calendar scheduler (CONTRACTS §5: background work) | Background work phase |
+| Bulk approve or return | Not built | Later |
+| Assignment counts on the dashboards | Dashboards arrive in Phase 6 | Phase 6 |
+| Browser walk-through for Phase 4 | Owner to run through the checklist; `npm run db:test` passed before the notifications and in-progress change, which needs it run again | Before the Phase 4 exit check |
 
 ### Phase 5: Sales pipeline
 
@@ -246,4 +273,4 @@ Deferred from Phase 3 (leftovers, not blocking):
 
 | Date | What was done | Phase | Time spent | Next step |
 |---|---|---|---|---|
-| | | | | |
+| 2026-11-07 | Phase 4 built, tested and pushed. Assignment batches, individual assignments, evidence, approval workflow, notifications bell, in-progress/on-hold/verified/approved/rejected statuses, auto-refresh pages, back buttons, polished list and detail pages. 7 commits on `phase-4-assignments`; PR open → dev. | 4 | ~1 day | Owner: browser walk-through, merge PR dev → main, then start Phase 5 |

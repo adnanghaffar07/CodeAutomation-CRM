@@ -334,3 +334,153 @@ model ImportRow {
   @@index([batchId, outcome, rowNumber])
   @@index([workspaceId, batchId])
 }
+
+// ───────────────────────────── Phase 4: assignments and work verification ─────────────────────────────
+
+/// What kind of work an assignment asks for (SPEC R-4.2).
+enum TaskType {
+  research
+  cleaning
+  outreach
+  calling
+  follow_up
+}
+
+enum Priority {
+  low
+  normal
+  high
+  urgent
+}
+
+/// How often approved work repeats (SPEC R-4.4).
+enum Recurrence {
+  none
+  daily
+  weekly
+  monthly
+}
+
+/// open (to do) → verified (submitted and passed the system checks) → approved, or rejected. Returned work goes back to open.
+enum AssignmentStatus {
+  open
+  in_progress
+  on_hold
+  verified
+  approved
+  rejected
+}
+
+enum EvidenceKind {
+  note
+  link
+}
+
+/// One piece of work given to people: a task type, instructions, completion criteria and an optional target (SPEC R-4.1, R-4.3).
+/// Each record in the batch gets its own `Assignment`. Visible to its creator, to anyone with an assignment in it, and to managers.
+model AssignmentBatch {
+  id                 String       @id @default(uuid()) @db.Uuid
+  workspaceId        String       @db.Uuid
+  title              String
+  recordType         RecordType
+  taskType           TaskType
+  instructions       String?
+  completionCriteria String?
+  priority           Priority     @default(normal)
+  requiresEvidence   Boolean      @default(true)
+  dueAt              DateTime?
+  recurrence         Recurrence   @default(none)
+  /// How many approved assignments the batch is aiming for (shown as progress). Optional.
+  targetCount        Int?
+  createdById        String       @db.Uuid
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  assignments        Assignment[]
+
+  @@index([workspaceId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+/// One record given to one person as part of a batch. `recordType`/`recordId` point at a Contact or Account (no foreign key,
+/// as with Activity). Status changes are written to `AssignmentEvent`, the history.
+model Assignment {
+  id               String               @id @default(uuid()) @db.Uuid
+  workspaceId      String               @db.Uuid
+  batchId          String               @db.Uuid
+  recordType       RecordType
+  recordId         String               @db.Uuid
+  assigneeId       String               @db.Uuid
+  assignedById     String               @db.Uuid
+  title            String
+  taskType         TaskType
+  priority         Priority             @default(normal)
+  dueAt            DateTime?
+  requiresEvidence Boolean              @default(true)
+  recurrence       Recurrence           @default(none)
+  status           AssignmentStatus     @default(open)
+  submittedAt      DateTime?
+  startedAt        DateTime?
+  verifiedAt       DateTime?
+  holdReason       String?
+  decidedAt        DateTime?
+  decidedById      String?              @db.Uuid
+  decisionComment  String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  batch            AssignmentBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  evidence         AssignmentEvidence[]
+  events           AssignmentEvent[]
+
+  @@index([workspaceId, assigneeId, status, dueAt])
+  @@index([workspaceId, status, dueAt])
+  @@index([workspaceId, batchId])
+  @@index([workspaceId, recordType, recordId])
+}
+
+/// Proof of work attached to an assignment before it is submitted: a note or a link.
+model AssignmentEvidence {
+  id           String       @id @default(uuid()) @db.Uuid
+  workspaceId  String       @db.Uuid
+  assignmentId String       @db.Uuid
+  kind         EvidenceKind
+  body         String
+  addedById    String       @db.Uuid
+  createdAt    DateTime     @default(now())
+  assignment   Assignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, assignmentId])
+}
+
+/// Append-only history of an assignment: assigned, reassigned (with reason), evidence, submitted, verified, approved,
+/// returned, rejected, repeat started or stopped (SPEC R-4.8).
+model AssignmentEvent {
+  id           String            @id @default(uuid()) @db.Uuid
+  workspaceId  String            @db.Uuid
+  assignmentId String            @db.Uuid
+  action       String
+  fromStatus   AssignmentStatus?
+  toStatus     AssignmentStatus?
+  comment      String?
+  detail       Json?
+  actorId      String            @db.Uuid
+  actorEmail   String?
+  createdAt    DateTime          @default(now())
+  assignment   Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, assignmentId, createdAt])
+}
+
+/// An in-app notification for one person (the bell). Written by the person who caused it, and read only by its recipient.
+model Notification {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  userId      String    @db.Uuid
+  actorId     String    @db.Uuid
+  kind        String
+  title       String
+  body        String?
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, userId, readAt, createdAt(sort: Desc)])
+}
