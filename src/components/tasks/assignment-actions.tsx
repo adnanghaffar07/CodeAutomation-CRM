@@ -27,6 +27,9 @@ export type ActionsProps = {
   repeating: boolean;
   currentAssigneeId: string;
   members: Member[];
+  assigneeName?: string;
+  /** When true, only management actions are present — render them in a compact card at the bottom. */
+  managerOnly?: boolean;
 };
 
 export function AssignmentActions(p: ActionsProps) {
@@ -38,6 +41,7 @@ export function AssignmentActions(p: ActionsProps) {
   const [holdReason, setHoldReason] = React.useState("");
   const [newAssignee, setNewAssignee] = React.useState("");
   const [reason, setReason] = React.useState("");
+  const [showHold, setShowHold] = React.useState(false);
 
   // Runs one server action, then shows its result and reloads the page's data.
   async function run(action: () => Promise<{ ok: true } | { ok: false; error: string }>, success: string, after?: () => void) {
@@ -98,6 +102,82 @@ export function AssignmentActions(p: ActionsProps) {
   const anything = canStartNow || canWork || canHoldNow || canResumeNow || canReview || canReassignNow || canStopRepeat;
   if (!anything) return null;
 
+  const hasTools = canHoldNow || canReassignNow || canStopRepeat;
+  const toolsCard = hasTools ? (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-footnote font-medium text-muted-foreground uppercase tracking-wide">{p.isManager ? "Manager tools" : "More options"}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-0 divide-y divide-border pt-0">
+          {canHoldNow && (
+            <div className="py-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-footnote font-medium">Put on hold</p>
+                  <p className="text-caption text-muted-foreground">Pause this work and say why.</p>
+                </div>
+                <Button size="sm" type="button" variant="outline" onClick={() => setShowHold((v) => !v)} className="shrink-0">
+                  {showHold ? "Cancel" : "Put on hold…"}
+                </Button>
+              </div>
+              {showHold && (
+                <form onSubmit={holdNow} className="mt-3 flex gap-3">
+                  <Textarea
+                    rows={1}
+                    className="flex-1"
+                    value={holdReason}
+                    onChange={(e) => setHoldReason(e.target.value)}
+                    maxLength={500}
+                    required
+                    placeholder="Reason, e.g. waiting for access to the client's portal"
+                  />
+                  <Button size="sm" type="submit" disabled={busy || holdReason.trim().length < 3} className="shrink-0 self-start">
+                    Confirm
+                  </Button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {canReassignNow && (
+            <form onSubmit={reassignNow} className="py-4">
+              <p className="mb-3 text-footnote font-medium">Reassign</p>
+              <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                <label className="flex flex-col gap-1 text-footnote">
+                  <span className="text-muted-foreground">New person</span>
+                  <select className={field} value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)} required>
+                    <option value="">Choose a person</option>
+                    {others.map((m) => <option key={m.userId} value={m.userId}>{m.fullName}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-footnote">
+                  <span className="text-muted-foreground">Reason</span>
+                  <Textarea rows={1} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required />
+                </label>
+                <Button size="sm" type="submit" variant="outline" disabled={busy || !newAssignee || reason.trim().length < 3} className="self-end">
+                  Reassign
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {canStopRepeat && (
+            <div className="flex items-center justify-between gap-4 py-4">
+              <div>
+                <p className="text-footnote font-medium">Repeating work</p>
+                <p className="text-caption text-muted-foreground">Approving starts the next round automatically.</p>
+              </div>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => stopRepeating(p.assignmentId), "Repeats stopped.")} className="shrink-0">
+                Stop repeating
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+  ) : null;
+
+  if (p.managerOnly) return toolsCard;
+
   return (
     <div className="space-y-4">
       {/* Slim inline banners for quick one-click actions */}
@@ -127,7 +207,7 @@ export function AssignmentActions(p: ActionsProps) {
 
       {/* Primary action cards */}
       {(canWork || canReview) && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-4">
           {canWork && (
             <Card>
               <CardHeader><CardTitle>Your work</CardTitle></CardHeader>
@@ -184,61 +264,7 @@ export function AssignmentActions(p: ActionsProps) {
         </div>
       )}
 
-      {/* Secondary / management actions */}
-      {(canHoldNow || canReassignNow || canStopRepeat) && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {canHoldNow && (
-            <Card>
-              <CardHeader><CardTitle className="text-footnote font-medium">Put on hold</CardTitle></CardHeader>
-              <CardContent className="pt-0">
-                <form onSubmit={holdNow} className="space-y-3">
-                  <label className="flex flex-col gap-1 text-footnote">
-                    <span className="text-muted-foreground">Reason</span>
-                    <Textarea rows={2} value={holdReason} onChange={(e) => setHoldReason(e.target.value)} maxLength={500} required placeholder="e.g. waiting for access to the client's portal" />
-                  </label>
-                  <div className="flex justify-end">
-                    <Button size="sm" type="submit" variant="outline" disabled={busy || holdReason.trim().length < 3}>Put on hold</Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          {canReassignNow && (
-            <Card>
-              <CardHeader><CardTitle className="text-footnote font-medium">Reassign</CardTitle></CardHeader>
-              <CardContent className="pt-0">
-                <form onSubmit={reassignNow} className="space-y-3">
-                  <label className="flex flex-col gap-1 text-footnote">
-                    <span className="text-muted-foreground">New person</span>
-                    <select className={field} value={newAssignee} onChange={(e) => setNewAssignee(e.target.value)} required>
-                      <option value="">Choose a person</option>
-                      {others.map((m) => <option key={m.userId} value={m.userId}>{m.fullName}</option>)}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1 text-footnote">
-                    <span className="text-muted-foreground">Reason</span>
-                    <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required />
-                  </label>
-                  <div className="flex justify-end">
-                    <Button size="sm" type="submit" variant="outline" disabled={busy || !newAssignee || reason.trim().length < 3}>Reassign</Button>
-                  </div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          {canStopRepeat && (
-            <Card>
-              <CardHeader><CardTitle className="text-footnote font-medium">Repeating work</CardTitle></CardHeader>
-              <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-0">
-                <p className="text-caption text-muted-foreground">Approving starts the next round.</p>
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => run(() => stopRepeating(p.assignmentId), "Repeats stopped.")}>Stop repeating</Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+      {toolsCard}
     </div>
   );
 }
