@@ -97,11 +97,10 @@ export default async function Page({ params }: { params: { id: string } }) {
       />
 
       <div className="space-y-6">
-        {/* Primary actions (worker start/work, review): shown above the details grid */}
-        {showActionsFirst && <AssignmentActions {...actionsProps} />}
-
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-2">
+            {showActionsFirst && <AssignmentActions {...actionsProps} />}
+
             <Card>
               <CardHeader><CardTitle>Details</CardTitle></CardHeader>
               <CardContent className="grid gap-4 text-footnote sm:grid-cols-2">
