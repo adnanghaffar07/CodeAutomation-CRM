@@ -223,7 +223,77 @@ async function main() {
     check("B cannot see the staged rows of A", rowsSeenByB.length === 0);
     const batchSeenByA = await withScope(asA, (tx) => tx.importBatch.findMany({ where: { id: batchA.id }, select: { id: true } }));
     check("A sees its own import batch", batchSeenByA.length === 1);
+
+    // Phase 4: assignments, evidence and history follow the people involved.
+    const asgRecord = await withScope(asMgr, (tx) => tx.contact.create({
+      data: { workspaceId: wsA, createdById: asMgr.userId, ownerId: asMgr.userId, firstName: "Asg", fullName: "Assignment Target", email: `asg-${tag}@test.invalid` },
+      select: { id: true },
+    }));
+    const asgBatch = await withScope(asMgr, (tx) => tx.assignmentBatch.create({
+      data: { workspaceId: wsA, title: `Batch ${tag}`, recordType: "contact", taskType: "research", createdById: asMgr.userId },
+      select: { id: true },
+    }));
+    const asg = await withScope(asMgr, (tx) => tx.assignment.create({
+      data: { workspaceId: wsA, batchId: asgBatch.id, recordType: "contact", recordId: asgRecord.id, assigneeId: s1, assignedById: asMgr.userId, title: `Task ${tag}`, taskType: "research" },
+      select: { id: true },
+    }));
+    check("assignments: the assignee sees theirs", (await withScope(asS1, (tx) => tx.assignment.findMany({ where: { id: asg.id } }))).length === 1);
+    check("assignments: another sales/researcher user does not", (await withScope(asS2, (tx) => tx.assignment.findMany({ where: { id: asg.id } }))).length === 0);
+    check("assignments: manager sees it", (await withScope(asMgr, (tx) => tx.assignment.findMany({ where: { id: asg.id } }))).length === 1);
+    check("assignments: CEO/Admin sees it", (await withScope(asA, (tx) => tx.assignment.findMany({ where: { id: asg.id } }))).length === 1);
+    check("assignments: another workspace sees none", (await withScope(asB, (tx) => tx.assignment.findMany({ where: { id: asg.id } }))).length === 0);
+    check("assignment batch: the assignee can see the batch", (await withScope(asS1, (tx) => tx.assignmentBatch.findMany({ where: { id: asgBatch.id } }))).length === 1);
+    check("assignment batch: someone with no assignment in it cannot", (await withScope(asS2, (tx) => tx.assignmentBatch.findMany({ where: { id: asgBatch.id } }))).length === 0);
+    let salesAssigns = false;
+    try { await withScope(asS1, (tx) => tx.assignment.create({ data: { workspaceId: wsA, batchId: asgBatch.id, recordType: "contact", recordId: asgRecord.id, assigneeId: s1, assignedById: s1, title: "self", taskType: "research" } })); } catch { salesAssigns = true; }
+    check("sales/researcher cannot give themselves work", salesAssigns);
+    let salesBatch = false;
+    try { await withScope(asS1, (tx) => tx.assignmentBatch.create({ data: { workspaceId: wsA, title: "x", recordType: "contact", taskType: "research", createdById: s1 } })); } catch { salesBatch = true; }
+    check("sales/researcher cannot create a batch", salesBatch);
+    check("assignments: another user cannot change it", (await withScope(asS2, (tx) => tx.assignment.updateMany({ where: { id: asg.id }, data: { title: "hacked" } }))).count === 0);
+    check("assignments: the assignee can update their own", (await withScope(asS1, (tx) => tx.assignment.updateMany({ where: { id: asg.id }, data: { priority: "high" } }))).count === 1);
+    let reassignedByAssignee = false;
+    try { reassignedByAssignee = (await withScope(asS1, (tx) => tx.assignment.updateMany({ where: { id: asg.id }, data: { assigneeId: s2 } }))).count === 1; } catch { reassignedByAssignee = false; }
+    check("assignments: the assignee cannot hand their work to someone else", !reassignedByAssignee);
+    const asgAfter = await withScope(asMgr, (tx) => tx.assignment.findUnique({ where: { id: asg.id }, select: { assigneeId: true } }));
+    check("assignments: the assignee is unchanged after that attempt", asgAfter?.assigneeId === s1);
+
+    let evSpoof = false;
+    try { await withScope(asS1, (tx) => tx.assignmentEvidence.create({ data: { workspaceId: wsA, assignmentId: asg.id, kind: "note", body: "x", addedById: s2 } })); } catch { evSpoof = true; }
+    check("evidence: cannot be added in someone else's name", evSpoof);
+    let evOther = false;
+    try { await withScope(asS2, (tx) => tx.assignmentEvidence.create({ data: { workspaceId: wsA, assignmentId: asg.id, kind: "note", body: "x", addedById: s2 } })); } catch { evOther = true; }
+    check("evidence: someone not assigned cannot add it", evOther);
+    const ev = await withScope(asS1, (tx) => tx.assignmentEvidence.create({ data: { workspaceId: wsA, assignmentId: asg.id, kind: "note", body: "Found the owner", addedById: s1 }, select: { id: true } }));
+    check("evidence: the assignee adds it", !!ev.id);
+    check("evidence: the assignee reads it", (await withScope(asS1, (tx) => tx.assignmentEvidence.findMany({ where: { assignmentId: asg.id } }))).length === 1);
+    check("evidence: another user does not read it", (await withScope(asS2, (tx) => tx.assignmentEvidence.findMany({ where: { assignmentId: asg.id } }))).length === 0);
+    check("evidence: manager reads it", (await withScope(asMgr, (tx) => tx.assignmentEvidence.findMany({ where: { assignmentId: asg.id } }))).length === 1);
+    check("evidence: other workspace reads none", (await withScope(asB, (tx) => tx.assignmentEvidence.findMany({ where: { assignmentId: asg.id } }))).length === 0);
+    let evEdit = false;
+    try { await withScope(asS1, (tx) => tx.assignmentEvidence.updateMany({ data: { body: "edited" } })); } catch { evEdit = true; }
+    check("evidence: cannot be edited", evEdit);
+    let evDelete = false;
+    try { await withScope(asS1, (tx) => tx.assignmentEvidence.deleteMany({ where: { assignmentId: asg.id } })); } catch { evDelete = true; }
+    check("evidence: cannot be deleted", evDelete);
+
+    await withScope(asS1, (tx) => tx.assignmentEvent.create({ data: { workspaceId: wsA, assignmentId: asg.id, action: "submitted", actorId: s1 } }));
+    check("history: the assignee writes an entry as themselves", (await withScope(asS1, (tx) => tx.assignmentEvent.findMany({ where: { assignmentId: asg.id } }))).length === 1);
+    let eventSpoof = false;
+    try { await withScope(asS2, (tx) => tx.assignmentEvent.create({ data: { workspaceId: wsA, assignmentId: asg.id, action: "approved", actorId: s2 } })); } catch { eventSpoof = true; }
+    check("history: someone not assigned cannot write to it", eventSpoof);
+    check("history: another user cannot read it", (await withScope(asS2, (tx) => tx.assignmentEvent.findMany({ where: { assignmentId: asg.id } }))).length === 0);
+    let eventEdit = false;
+    try { await withScope(asA, (tx) => tx.assignmentEvent.updateMany({ data: { action: "tampered" } })); } catch { eventEdit = true; }
+    check("history: entries cannot be edited, even by the CEO/Admin", eventEdit);
+    let eventDelete = false;
+    try { await withScope(asA, (tx) => tx.assignmentEvent.deleteMany({ where: { assignmentId: asg.id } })); } catch { eventDelete = true; }
+    check("history: entries cannot be deleted", eventDelete);
   } finally {
+    await admin.assignmentEvent.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.assignmentEvidence.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.assignment.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
+    await admin.assignmentBatch.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.importRow.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.importBatch.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });
     await admin.attachment.deleteMany({ where: { workspaceId: { in: [wsA, wsB] } } });

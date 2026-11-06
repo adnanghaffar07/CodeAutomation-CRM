@@ -303,3 +303,101 @@ create policy importrow_all on "ImportRow" for all to crm_app
 grant select, insert, update, delete on "ImportBatch", "ImportRow" to crm_app
 --#
 revoke all on "ImportBatch", "ImportRow" from anon, authenticated
+--#
+-- ───────────────────────── Phase 4: assignments, evidence and history ─────────────────────────
+-- Batches: created by a manager/CEO (as themselves); visible to them, to the creator, and to anyone holding an assignment in the batch.
+alter table "AssignmentBatch" enable row level security
+--#
+alter table "AssignmentBatch" force row level security
+--#
+drop policy if exists batch4_select on "AssignmentBatch"
+--#
+drop policy if exists batch4_insert on "AssignmentBatch"
+--#
+drop policy if exists batch4_update on "AssignmentBatch"
+--#
+drop policy if exists batch4_delete on "AssignmentBatch"
+--#
+create policy batch4_select on "AssignmentBatch" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "createdById" = app.user_id()
+    or exists (select 1 from "Assignment" a where a."batchId" = "AssignmentBatch".id and a."assigneeId" = app.user_id()))))
+--#
+create policy batch4_insert on "AssignmentBatch" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.sees_all() and "createdById" = app.user_id()))
+--#
+create policy batch4_update on "AssignmentBatch" for update to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.sees_all()))
+  with check (app.bypass() or "workspaceId" = app.workspace_id())
+--#
+create policy batch4_delete on "AssignmentBatch" for delete to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.sees_all()))
+--#
+-- Assignments: managers see and create them; the assignee sees and updates their own (the app limits which fields and
+-- which status moves each role may make; row-level security cannot check columns, so the assignee's update must keep
+-- the same assignee).
+alter table "Assignment" enable row level security
+--#
+alter table "Assignment" force row level security
+--#
+drop policy if exists assignment_select on "Assignment"
+--#
+drop policy if exists assignment_insert on "Assignment"
+--#
+drop policy if exists assignment_update on "Assignment"
+--#
+drop policy if exists assignment_delete on "Assignment"
+--#
+create policy assignment_select on "Assignment" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "assigneeId" = app.user_id() or "assignedById" = app.user_id())))
+--#
+create policy assignment_insert on "Assignment" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.sees_all() and "assignedById" = app.user_id()))
+--#
+create policy assignment_update on "Assignment" for update to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "assigneeId" = app.user_id())))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "assigneeId" = app.user_id())))
+--#
+create policy assignment_delete on "Assignment" for delete to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and app.sees_all()))
+--#
+-- Evidence and history follow their assignment: whoever can see the assignment can read them; only the assignee (or a
+-- manager) can add evidence, as themselves. Both are append-only for the app role.
+alter table "AssignmentEvidence" enable row level security
+--#
+alter table "AssignmentEvidence" force row level security
+--#
+drop policy if exists evidence4_select on "AssignmentEvidence"
+--#
+drop policy if exists evidence4_insert on "AssignmentEvidence"
+--#
+create policy evidence4_select on "AssignmentEvidence" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and exists (select 1 from "Assignment" a where a.id = "assignmentId")))
+--#
+create policy evidence4_insert on "AssignmentEvidence" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "addedById" = app.user_id()
+    and exists (select 1 from "Assignment" a where a.id = "assignmentId" and (app.sees_all() or a."assigneeId" = app.user_id()))))
+--#
+revoke update, delete, truncate on "AssignmentEvidence" from crm_app
+--#
+alter table "AssignmentEvent" enable row level security
+--#
+alter table "AssignmentEvent" force row level security
+--#
+drop policy if exists event4_select on "AssignmentEvent"
+--#
+drop policy if exists event4_insert on "AssignmentEvent"
+--#
+create policy event4_select on "AssignmentEvent" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and exists (select 1 from "Assignment" a where a.id = "assignmentId")))
+--#
+create policy event4_insert on "AssignmentEvent" for insert to crm_app
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "actorId" = app.user_id()
+    and exists (select 1 from "Assignment" a where a.id = "assignmentId")))
+--#
+revoke update, delete, truncate on "AssignmentEvent" from crm_app
+--#
+grant select, insert, update, delete on "AssignmentBatch", "Assignment", "AssignmentEvidence", "AssignmentEvent" to crm_app
+--#
+revoke all on "AssignmentBatch", "Assignment", "AssignmentEvidence", "AssignmentEvent" from anon, authenticated
+--#
+revoke update, delete, truncate on "AssignmentEvidence", "AssignmentEvent" from crm_app

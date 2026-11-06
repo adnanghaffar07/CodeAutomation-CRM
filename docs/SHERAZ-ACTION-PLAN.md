@@ -144,12 +144,30 @@ Deferred from Phase 3 (leftovers, not blocking):
 
 ### Phase 4: Assignments and work verification
 
-- [ ] Assign records and batches; task types
-- [ ] Deadlines, priorities, targets, recurrence, reminders
-- [ ] Required evidence; submitted / verified / approved states
-- [ ] Approve, reject, return with comments
-- [ ] Assignment history; overdue and missing-evidence flags
-- [ ] Exit check: full lifecycle works for each role
+- [x] Assign records and batches; task types (New assignment picks contacts or companies for one person; research, cleaning, outreach, calling, follow-up)
+- [x] Deadlines, priorities, targets, recurrence and reminders (deadlines, priority, target progress, repeats on approval; reminders are the in-app Due soon and Missing evidence flags only, see leftovers)
+- [x] Required evidence; submitted / verified / approved states (notes and links; submitting runs the system checks and moves the work to awaiting approval)
+- [x] Approve, reject, return with comments
+- [x] Assignment history; overdue and missing-evidence flags
+- [ ] Exit check: full lifecycle works for each role (not met yet: `npm run db:test` and a walk-through in the browser by the owner are still to do; see leftovers)
+
+Ticked items are built and pass type check, lint, unit tests and the production build. The database checks and the browser walk-through have not run yet.
+
+Deferred from Phase 4 (leftovers, not blocking):
+
+| Item | Why deferred | Revisit |
+|---|---|---|
+| Reminders by email, push or a notification list | No notification system yet; only in-app flags (Due soon, Missing evidence) | Phase 7 (notifications) or Phase 9 |
+| AI check of work against completion criteria (SPEC R-10.5) | The check today is evidence present and record visible; criteria are shown, not checked | Phase 12 |
+| Evidence as uploaded files | Evidence is a note or a link; record attachments are not linked to assignments yet | Later, with attachment links |
+| Assign from a record page | Assigning is on the New assignment page only | Small follow-up |
+| Keyset paging on the assignment list | The list shows the first 200 (SPEC R-11.1 asks for keyset paging) | Phase 13 load test |
+| Old assignee keeps access to the record after reassigning | Access is removed only by editing the record's assignees by hand | Later data-quality work |
+| Deadlines are the end of the day in UTC | No per-person time zone yet | Later, with user settings |
+| Repeats only start when the previous round is approved | No calendar scheduler (CONTRACTS §5: background work) | Background work phase |
+| Bulk approve or return | Not built | Later |
+| Assignment counts on the dashboards | Dashboards arrive in Phase 6 | Phase 6 |
+| Browser walk-through and `npm run db:test` for Phase 4 | Owner to run; the database schema push was blocked in the build session | Before the Phase 4 exit check |
 
 ### Phase 5: Sales pipeline
 
