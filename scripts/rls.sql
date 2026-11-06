@@ -271,3 +271,46 @@ create policy cfd_select on "CustomFieldDef" for select to crm_app
 create policy cfd_write on "CustomFieldDef" for all to crm_app
   using (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
   with check (app.bypass() or ("workspaceId" = app.workspace_id() and app.role() = 'ceo_admin'))
+--#
+-- ───────────────────────── Phase 3: imports and background jobs ─────────────────────────
+-- Import batches: the uploader and anyone who sees everything (CEO/Admin, Manager) may read; you can only create one as yourself.
+alter table "ImportBatch" enable row level security
+--#
+alter table "ImportBatch" force row level security
+--#
+drop policy if exists batch_select on "ImportBatch"
+--#
+drop policy if exists batch_write on "ImportBatch"
+--#
+create policy batch_select on "ImportBatch" for select to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "uploadedById" = app.user_id())))
+--#
+create policy batch_write on "ImportBatch" for all to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and (app.sees_all() or "uploadedById" = app.user_id())))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and "uploadedById" = app.user_id()))
+--#
+-- Staged rows belong to their batch.
+alter table "ImportRow" enable row level security
+--#
+alter table "ImportRow" force row level security
+--#
+drop policy if exists importrow_all on "ImportRow"
+--#
+create policy importrow_all on "ImportRow" for all to crm_app
+  using (app.bypass() or ("workspaceId" = app.workspace_id() and exists (select 1 from "ImportBatch" b where b.id = "batchId")))
+  with check (app.bypass() or ("workspaceId" = app.workspace_id() and exists (select 1 from "ImportBatch" b where b.id = "batchId")))
+--#
+-- Jobs: only the system (worker, or the request that enqueues) reads them; the app role sees its own workspace's jobs.
+alter table "Job" enable row level security
+--#
+alter table "Job" force row level security
+--#
+drop policy if exists job_all on "Job"
+--#
+create policy job_all on "Job" for all to crm_app
+  using (app.bypass() or "workspaceId" = app.workspace_id())
+  with check (app.bypass() or "workspaceId" = app.workspace_id())
+--#
+grant select, insert, update, delete on "ImportBatch", "ImportRow", "Job" to crm_app
+--#
+revoke all on "ImportBatch", "ImportRow", "Job" from anon, authenticated

@@ -120,10 +120,10 @@ Personal tracker for Sheraz. Tick boxes as work completes (`[ ]` → `[x]`). Det
 
 ### Phase 3: Imports and data quality
 
-- [ ] Upload, column mapping, preview, validation
-- [ ] Background import via staging table
-- [ ] Duplicate detection (in file and existing) without leaking restricted data
-- [ ] Controlled updates; batch results and error report
+- [x] Upload, column mapping, preview, validation
+- [x] Background import via staging table
+- [x] Duplicate detection (in file and existing) without leaking restricted data
+- [x] Controlled updates; batch results and error report
 - [ ] Merge tool and missing-data report
 - [ ] Exit check: 500k-row import completes in the background
 

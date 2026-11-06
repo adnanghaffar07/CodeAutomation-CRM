@@ -8,9 +8,9 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
   // Trigram indexes make "contains" search fast on millions of rows (contact / account search).
   extensions = [pg_trgm]
 }
@@ -29,12 +29,12 @@ enum MemberStatus {
 
 /// A tenant. All CRM data belongs to exactly one workspace.
 model Workspace {
-  id        String            @id @default(uuid()) @db.Uuid
-  name      String
-  slug      String            @unique
-  createdAt DateTime          @default(now())
-  members   WorkspaceMember[]
-  auditLogs AuditLog[]
+  id          String                  @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String                  @unique
+  createdAt   DateTime                @default(now())
+  members     WorkspaceMember[]
+  auditLogs   AuditLog[]
   credentials IntegrationCredential[]
   accounts    Account[]
   contacts    Contact[]
@@ -141,37 +141,37 @@ enum CustomFieldType {
 /// A company. `viewerIds` is maintained by a database trigger (creator + owner + assignees); row-level security
 /// uses it so Sales/BD and Researchers see only their own records, with one index lookup.
 model Account {
-  id            String      @id @default(uuid()) @db.Uuid
-  workspaceId   String      @db.Uuid
-  name          String
-  domain        String?
-  website       String?
-  industry      String?
-  sizeBand      String?
-  city          String?
-  region        String?
-  country       String?
-  phone         String?
-  linkedinUrl   String?
-  description   String?
-  source        String?
-  createdById   String      @db.Uuid
-  ownerId       String?     @db.Uuid
-  assigneeIds   String[]    @db.Uuid
-  viewerIds     String[]    @db.Uuid
-  importBatchId String?     @db.Uuid
-  verifiedAt    DateTime?
-  tags          String[]
-  customFields  Json        @default("{}")
-  qualification LeadStatus  @default(new)
+  id              String     @id @default(uuid()) @db.Uuid
+  workspaceId     String     @db.Uuid
+  name            String
+  domain          String?
+  website         String?
+  industry        String?
+  sizeBand        String?
+  city            String?
+  region          String?
+  country         String?
+  phone           String?
+  linkedinUrl     String?
+  description     String?
+  source          String?
+  createdById     String     @db.Uuid
+  ownerId         String?    @db.Uuid
+  assigneeIds     String[]   @db.Uuid
+  viewerIds       String[]   @db.Uuid
+  importBatchId   String?    @db.Uuid
+  verifiedAt      DateTime?
+  tags            String[]
+  customFields    Json       @default("{}")
+  qualification   LeadStatus @default(new)
   serviceInterest String?
-  nextAction    String?
-  followUpAt    DateTime?
-  searchText    String      @default("")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contacts      Contact[]
+  nextAction      String?
+  followUpAt      DateTime?
+  searchText      String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  workspace       Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts        Contact[]
 
   @@index([workspaceId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([workspaceId, name, id])
@@ -184,38 +184,38 @@ model Account {
 
 /// A person, optionally linked to an account.
 model Contact {
-  id            String      @id @default(uuid()) @db.Uuid
-  workspaceId   String      @db.Uuid
-  accountId     String?     @db.Uuid
-  firstName     String
-  lastName      String      @default("")
-  fullName      String
-  email         String?
-  emailStatus   EmailStatus @default(active)
-  phone         String?
-  jobTitle      String?
-  linkedinUrl   String?
-  city          String?
-  region        String?
-  country       String?
-  source        String?
-  createdById   String      @db.Uuid
-  ownerId       String?     @db.Uuid
-  assigneeIds   String[]    @db.Uuid
-  viewerIds     String[]    @db.Uuid
-  importBatchId String?     @db.Uuid
-  verifiedAt    DateTime?
-  tags          String[]
-  customFields  Json        @default("{}")
-  qualification LeadStatus  @default(new)
+  id              String      @id @default(uuid()) @db.Uuid
+  workspaceId     String      @db.Uuid
+  accountId       String?     @db.Uuid
+  firstName       String
+  lastName        String      @default("")
+  fullName        String
+  email           String?
+  emailStatus     EmailStatus @default(active)
+  phone           String?
+  jobTitle        String?
+  linkedinUrl     String?
+  city            String?
+  region          String?
+  country         String?
+  source          String?
+  createdById     String      @db.Uuid
+  ownerId         String?     @db.Uuid
+  assigneeIds     String[]    @db.Uuid
+  viewerIds       String[]    @db.Uuid
+  importBatchId   String?     @db.Uuid
+  verifiedAt      DateTime?
+  tags            String[]
+  customFields    Json        @default("{}")
+  qualification   LeadStatus  @default(new)
   serviceInterest String?
-  nextAction    String?
-  followUpAt    DateTime?
-  searchText    String      @default("")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  account       Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  nextAction      String?
+  followUpAt      DateTime?
+  searchText      String      @default("")
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  workspace       Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account         Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, email])
   @@index([workspaceId, createdAt(sort: Desc), id(sort: Desc)])
@@ -295,4 +295,59 @@ model Attachment {
   createdAt    DateTime   @default(now())
 
   @@index([workspaceId, recordType, recordId])
+}
+
+/// One CSV upload being imported into contacts or accounts (SPEC R-8.5). Rows are staged first, then the worker applies them.
+model ImportBatch {
+  id            String      @id @default(uuid()) @db.Uuid
+  workspaceId   String      @db.Uuid
+  recordType    RecordType
+  fileName      String
+  uploadedById  String      @db.Uuid
+  mapping       Json        @default("{}")
+  duplicateMode String      @default("skip")
+  status        String      @default("staging") // staging | queued | running | done | failed
+  totalRows     Int         @default(0)
+  accepted      Int         @default(0)
+  rejected      Int         @default(0)
+  duplicates    Int         @default(0)
+  updated       Int         @default(0)
+  createdAt     DateTime    @default(now())
+  finishedAt    DateTime?
+  rows          ImportRow[]
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+}
+
+/// A staged row from an import file. `raw` is what the file said; `outcome` is set by the worker.
+model ImportRow {
+  id          String      @id @default(uuid()) @db.Uuid
+  workspaceId String      @db.Uuid
+  batchId     String      @db.Uuid
+  rowNumber   Int
+  raw         Json
+  outcome     String      @default("pending") // pending | created | updated | duplicate | rejected | skipped
+  message     String?
+  recordId    String?     @db.Uuid
+  batch       ImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, outcome, rowNumber])
+  @@index([workspaceId, batchId])
+}
+
+/// Background work queue (SPEC §5 of CONTRACTS). Claimed with FOR UPDATE SKIP LOCKED by the worker.
+model Job {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  kind        String
+  payload     Json      @default("{}")
+  status      String    @default("queued") // queued | running | done | failed
+  attempts    Int       @default(0)
+  lastError   String?
+  runAt       DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  finishedAt  DateTime?
+
+  @@index([status, runAt])
+  @@index([workspaceId, createdAt(sort: Desc)])
 }
