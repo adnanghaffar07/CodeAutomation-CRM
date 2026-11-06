@@ -6,7 +6,8 @@ import { checkRow, DUPLICATE_MESSAGE, mappingFromIndex, type ImportKind } from "
 import { searchBlob, normEmail } from "@/lib/records/text";
 import type { Prisma } from "@prisma/client";
 
-const PAGE = 500;
+// Small pages keep each database transaction well inside its time limit.
+const PAGE = 100;
 
 const isUniqueViolation = (e: unknown) => (e as { code?: string })?.code === "P2002";
 
@@ -43,6 +44,8 @@ export async function runImportBatch(batchId: string): Promise<void> {
     const raws = page.map((p) => p.raw as string[]);
     const checks = raws.map((r) => checkRow(kind, meta.headers, r, mapping));
     const keys = checks.map((c) => (c.ok ? c.key : null));
+    // Looked up before the page transaction opens, so the two never run at the same time.
+    const existingKeys = await keysThatExist(kind, keys.filter((k): k is string => !!k));
 
     const outcomes = await withScope(scope, async (tx) => {
       const out: { id: string; outcome: string; message: string | null; recordId: string | null }[] = [];
@@ -67,7 +70,7 @@ export async function runImportBatch(batchId: string): Promise<void> {
         }
 
         // A record exists that the uploader cannot see: report it as a duplicate without saying anything more.
-        if (key && await existsHidden(kind, key)) {
+        if (key && existingKeys.has(key)) {
           out.push({ id: row.id, outcome: "duplicate", message: DUPLICATE_MESSAGE, recordId: null });
           continue;
         }
@@ -108,12 +111,20 @@ async function findVisible(tx: Tx, kind: ImportKind, v: Values, key: string): Pr
   return tx.account.findFirst({ where: { domain: key.slice(7) }, select: { id: true } });
 }
 
-/** Only tells whether a record exists at all, never its details (SPEC R-8.9). Runs as the system, returns a boolean. */
-async function existsHidden(kind: ImportKind, key: string): Promise<boolean> {
-  const n = await withSystem((tx) => kind === "contact"
-    ? tx.contact.count({ where: { email: key.slice(6) } })
-    : tx.account.count({ where: { domain: key.slice(7) } }));
-  return n > 0;
+/** Which of these keys already exist anywhere in the workspace. Returns only keys, never record details (SPEC R-8.9). */
+async function keysThatExist(kind: ImportKind, keys: string[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (keys.length === 0) return out;
+  if (kind === "contact") {
+    const emails = keys.map((k) => k.slice(6));
+    const rows = await withSystem((tx) => tx.contact.findMany({ where: { email: { in: emails } }, select: { email: true } }));
+    for (const r of rows) if (r.email) out.add(`email:${r.email}`);
+  } else {
+    const domains = keys.map((k) => k.slice(7));
+    const rows = await withSystem((tx) => tx.account.findMany({ where: { domain: { in: domains } }, select: { domain: true } }));
+    for (const r of rows) if (r.domain) out.add(`domain:${r.domain}`);
+  }
+  return out;
 }
 
 async function fillBlanks(tx: Tx, kind: ImportKind, id: string, v: Values, scope: Scope & { email: string }): Promise<string[] | null> {
