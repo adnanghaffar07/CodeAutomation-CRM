@@ -1,57 +1,86 @@
 import type { Metadata } from "next";
-import { Activity, CalendarCheck, ClipboardCheck, LayoutDashboard, Mail, Phone, TrendingUp, Users } from "lucide-react";
+import { LayoutDashboard } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { SectionHeader } from "@/components/ui/section-header";
-import { Stat, StatGroup } from "@/components/ui/stat";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Card, CardContent } from "@/components/ui/card";
+import { DateFilter, DemoBanner, ViewTabs } from "@/components/dashboard/parts";
+import { AdminView, ExecutiveView, PersonalView, SalesView, TeamView } from "@/components/dashboard/views";
+import { requireUser } from "@/lib/session";
+import { allowedViews, resolveView, resolveViewer, visibilityFor, type DashboardView } from "@/lib/dashboard/access";
+import { adminSummary, activityFeed, attainment, executiveAlerts, personalTasks, salesSummary, workBlock } from "@/lib/dashboard/metrics";
+import { parseRange, rangeFor } from "@/lib/dashboard/range";
+import { getDataset } from "@/lib/dashboard/source";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-// Phase 0 placeholder. Phase 6 builds the CEO dashboard on rollup tables.
-// Rule carried over from the reference CRM: every number comes from real records,
-// so with none yet each tile says "No data yet" instead of showing a modelled zero.
-const TILES = [
-  { label: "Leads added", icon: <Users />, accent: "blue" as const },
-  { label: "Assignments overdue", icon: <ClipboardCheck />, accent: "amber" as const },
-  { label: "Emails sent", icon: <Mail />, accent: "sky" as const },
-  { label: "Calls connected", icon: <Phone />, accent: "emerald" as const },
-  { label: "Meetings booked", icon: <CalendarCheck />, accent: "violet" as const },
-  { label: "Pipeline value", icon: <TrendingUp />, accent: "rose" as const },
-];
+const SUBTITLE: Record<DashboardView, string> = {
+  executive: "Organisation-wide performance, KPIs and what needs your attention.",
+  admin: "Users, access, approvals and system activity.",
+  sales: "Pipeline, targets and follow-ups.",
+  team: "How your team is doing: tasks, progress and workload.",
+  personal: "Your tasks, deadlines and KPIs.",
+};
 
-export default function DashboardPage() {
+// Dashboards are role-specific. The signed-in role decides which views exist and whose numbers feed them
+// (src/lib/dashboard/access.ts); a "?view=" the role may not open falls back to its own default. Numbers are demo
+// data for now (src/lib/dashboard/source.ts) and the page says so.
+export default async function DashboardPage({ searchParams }: { searchParams: { view?: string; range?: string } }) {
+  const user = await requireUser();
+  const now = new Date();
+  const ds = getDataset(now);
+
+  if (!ds) {
+    return (
+      <>
+        <PageHeader title="Dashboard" subtitle="Team activity, assignments and pipeline in one place." icon={<LayoutDashboard />} />
+        <Card><CardContent className="pt-5"><EmptyState title="No data yet" hint="Dashboards fill in as real records, assignments and deals are added." /></CardContent></Card>
+      </>
+    );
+  }
+
+  const persona = resolveViewer(ds, user);
+  const views = allowedViews(user.role, persona);
+  const view = resolveView(user.role, persona, searchParams.view);
+  const range = rangeFor(parseRange(searchParams.range), now);
+  const vis = visibilityFor(ds, persona);
+  const sellerIds = new Set(ds.people.filter((p) => vis.ids.has(p.id) && p.role === "sales_bd").map((p) => p.id));
+
+  let body: React.ReactNode;
+  let scopeText: string;
+
+  if (view === "executive") {
+    const work = workBlock(ds, vis.ids, range, now);
+    const sales = salesSummary(ds, sellerIds, range, now);
+    body = <ExecutiveView ds={ds} work={work} sales={sales} admin={adminSummary(ds, now)} alerts={executiveAlerts(ds, work, sales, now)} feed={activityFeed(ds, vis.ids, now, 8)} range={range} now={now} />;
+    scopeText = "the whole organisation";
+  } else if (view === "admin") {
+    body = <AdminView ds={ds} admin={adminSummary(ds, now)} work={workBlock(ds, vis.ids, range, now)} now={now} />;
+    scopeText = "the whole organisation";
+  } else if (view === "sales") {
+    const sales = salesSummary(ds, sellerIds, range, now);
+    const teamMates = new Set(ds.people.filter((p) => p.role === "sales_bd" && p.teamId === persona.teamId && p.status === "active").map((p) => p.id));
+    body = (
+      <SalesView ds={ds} sales={sales} work={workBlock(ds, sellerIds, range, now)} range={range} now={now} feed={activityFeed(ds, sellerIds, now, 8)}
+        scope={vis.scope} teamAverage={vis.scope === "self" ? attainment(ds, teamMates, now).month.rate : null} />
+    );
+    scopeText = vis.scope === "org" ? "all sales staff" : vis.scope === "team" ? "your sales team" : "your own deals and work";
+  } else if (view === "team") {
+    const team = ds.teams.find((t) => t.id === persona.teamId);
+    body = <TeamView work={workBlock(ds, vis.ids, range, now)} feed={activityFeed(ds, vis.ids, now, 8)} range={range} now={now} team={team?.name ?? "Your team"} />;
+    scopeText = "your team";
+  } else {
+    const mine = new Set([persona.id]);
+    const { open, recent } = personalTasks(ds, persona.id, now);
+    body = <PersonalView person={persona} work={workBlock(ds, mine, range, now)} open={open} recent={recent} range={range} feed={activityFeed(ds, mine, now, 6)} now={now} />;
+    scopeText = "your own work";
+  }
+
   return (
     <>
-      <PageHeader title="Dashboard" subtitle="Team activity, assignments and pipeline in one place." icon={<LayoutDashboard />} />
-
-      <section className="hero-banner relative mb-6 overflow-hidden rounded-card p-5 text-white md:p-7">
-        <p className="text-caption2 font-semibold uppercase tracking-[0.06em] text-white/70">CodeAutomation CRM</p>
-        <h2 className="mt-1 text-title2 font-semibold md:text-title1">Welcome back</h2>
-        <p className="mt-1 max-w-[60ch] text-body text-white/80">
-          Sign-in, roles and the audit log are live. Contacts, accounts and imports come next.
-        </p>
-        <span aria-hidden className="absolute inset-y-0 left-0 w-1.5 bg-line-accent" />
-      </section>
-
-      <SectionHeader title="Overview" context="Numbers appear once real records exist." />
-      <StatGroup>
-        {TILES.map((t) => (
-          <Stat key={t.label} label={t.label} value="—" hint="No data yet" icon={t.icon} accent={t.accent} isZero />
-        ))}
-      </StatGroup>
-
-      <div className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent activity</CardTitle>
-            <CardDescription>Who did what, when, on which record.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <EmptyState icon={<Activity />} title="No activity yet" hint="Activity from imports, assignments and integrations will show here." />
-          </CardContent>
-        </Card>
-      </div>
+      <PageHeader title="Dashboard" subtitle={SUBTITLE[view]} icon={<LayoutDashboard />} actions={<DateFilter range={range.key} view={view} defaultView={views[0]} />} />
+      <DemoBanner persona={persona} scope={scopeText} />
+      <ViewTabs views={views} view={view} range={range.key} />
+      {body}
     </>
   );
 }
