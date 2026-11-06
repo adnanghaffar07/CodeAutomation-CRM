@@ -42,8 +42,9 @@ export default async function Page({ searchParams }: { searchParams: Record<stri
 
   const data = await withScope(me.scope, async (tx) => {
     // Counts only what the caller can see (row-level security applies to every count).
-    const [toDo, review, overdue, missing, completed, total, rows, members] = await Promise.all([
-      tx.assignment.count({ where: { status: { in: ["open", "in_progress"] } } }),
+    const [toDo, inProgress, review, overdue, missing, completed, total, rows, members] = await Promise.all([
+      tx.assignment.count({ where: { status: "open" } }),
+      tx.assignment.count({ where: { status: "in_progress" } }),
       tx.assignment.count({ where: { status: "verified" } }),
       tx.assignment.count({ where: where.overdue }),
       tx.assignment.count({ where: where.missing }),
@@ -71,7 +72,7 @@ export default async function Page({ searchParams }: { searchParams: Record<stri
       ...accounts.map((a) => [a.id, a.name] as const),
     ]);
     const names = new Map(members.map((m) => [m.userId, m.fullName] as const));
-    return { counts: { toDo, review, overdue, missing, completed, total }, rows, recordName, names };
+    return { counts: { toDo, inProgress, review, overdue, missing, completed, total }, rows, recordName, names };
   });
 
   const link = (v: View) => (v === "all" ? "/tasks" : `/tasks?view=${v}`);
@@ -96,22 +97,22 @@ export default async function Page({ searchParams }: { searchParams: Record<stri
 
       {manager ? (
         <StatGroup className="mb-6">
-          <Stat label="Open" value={data.counts.toDo.toLocaleString()} href="/tasks?view=all" />
+          <Stat label="To do" value={data.counts.toDo.toLocaleString()} href="/tasks?view=all" />
+          <Stat label="In progress" value={data.counts.inProgress.toLocaleString()} href="/tasks?view=all" />
           <Stat label="Awaiting approval" value={data.counts.review.toLocaleString()} href="/tasks?view=review" tone={data.counts.review ? "warning" : "neutral"} />
           <Stat label="Overdue" value={data.counts.overdue.toLocaleString()} href="/tasks?view=overdue" tone={data.counts.overdue ? "danger" : "neutral"} />
-          <Stat label="Missing evidence" value={data.counts.missing.toLocaleString()} href="/tasks?view=missing" tone={data.counts.missing ? "warning" : "neutral"} />
         </StatGroup>
       ) : (
-        <div className="mb-6 grid grid-cols-3 gap-3 sm:grid-cols-3">
+        <div className="mb-6 grid grid-cols-3 gap-3">
           <div className="rounded-card border border-border bg-card p-4 text-center">
             <Clock className="mx-auto mb-1.5 size-5 text-muted-foreground" />
             <div className="text-title2 font-bold tabular-nums">{data.counts.toDo.toLocaleString()}</div>
-            <div className="mt-0.5 text-caption text-muted-foreground">In progress</div>
+            <div className="mt-0.5 text-caption text-muted-foreground">To do</div>
           </div>
-          <div className={`rounded-card border border-border bg-card p-4 text-center ${data.counts.review ? "border-warning/40 bg-warning/5" : ""}`}>
-            <ClipboardCheck className={`mx-auto mb-1.5 size-5 ${data.counts.review ? "text-warning" : "text-muted-foreground"}`} />
-            <div className="text-title2 font-bold tabular-nums">{data.counts.review.toLocaleString()}</div>
-            <div className="mt-0.5 text-caption text-muted-foreground">Awaiting approval</div>
+          <div className="rounded-card border border-border bg-card p-4 text-center">
+            <ClipboardCheck className="mx-auto mb-1.5 size-5 text-brand-text" />
+            <div className="text-title2 font-bold tabular-nums">{data.counts.inProgress.toLocaleString()}</div>
+            <div className="mt-0.5 text-caption text-muted-foreground">In progress</div>
           </div>
           <div className="rounded-card border border-border bg-card p-4 text-center">
             <CheckCircle2 className="mx-auto mb-1.5 size-5 text-success" />
